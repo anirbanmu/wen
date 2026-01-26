@@ -4,3 +4,4 @@ target/
 .DS_Store
 *.class
 .mvn/wrapper/maven-wrapper.properties
+dependency-reduced-pom.xml
