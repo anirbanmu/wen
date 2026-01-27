@@ -76,6 +76,17 @@ public class ConfigLoader {
 
         boolean isDefault = table.getBoolean("isDefault") != null && table.getBoolean("isDefault");
 
+        String refreshStr = table.getString("refreshInterval");
+        java.time.Duration refreshInterval = java.time.Duration.ofHours(6); // Default
+        if (refreshStr != null) {
+            try {
+                // Simple parsing for "PT1H", "PT30M" etc. Standard ISO-8601 duration
+                refreshInterval = java.time.Duration.parse(refreshStr);
+            } catch (Exception e) {
+                 throw new ConfigException("Source '" + name + "' has invalid 'refreshInterval': " + refreshStr);
+            }
+        }
+
         Map<String, EventMatcher> matchers = new HashMap<>();
         if (table.isTable("matchers")) {
             TomlTable matchersTable = table.getTable("matchers");
@@ -86,7 +97,7 @@ public class ConfigLoader {
             }
         }
 
-        return new CalendarSource(List.copyOf(keywords), name, url, Map.copyOf(matchers), isDefault);
+        return new CalendarSource(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(matchers), isDefault);
     }
 
     private static EventMatcher parseMatcher(TomlTable table, String context) {

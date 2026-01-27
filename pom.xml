@@ -77,5 +77,10 @@
         <version>6.0.2</version>
         <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>net.sf.biweekly</groupId>
+      <artifactId>biweekly</artifactId>
+      <version>0.6.8</version>
+    </dependency>
   </dependencies>
 </project>
