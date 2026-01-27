@@ -1,11 +1,10 @@
 package com.github.anirbanmu.wen.calendar;
 
-import com.github.anirbanmu.wen.log.Log;
 import biweekly.Biweekly;
 import biweekly.ICalendar;
 import biweekly.component.VEvent;
 import biweekly.util.com.google.ical.compat.javautil.DateIterator;
-
+import com.github.anirbanmu.wen.log.Log;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -85,7 +84,9 @@ public class CalendarFeed {
 
         for (VEvent event : ical.getEvents()) {
             Date start = event.getDateStart().getValue();
-            if (start == null) continue; // skip invalid events without start date
+            if (start == null) {
+                continue; // skip invalid events without start date
+            }
 
             Duration duration = calculateDuration(event);
 

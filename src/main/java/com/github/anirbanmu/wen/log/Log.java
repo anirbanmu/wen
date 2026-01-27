@@ -8,12 +8,10 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -36,7 +34,8 @@ public final class Log {
         }));
     }
 
-    private Log() {}
+    private Log() {
+    }
 
     public static void info(String evt, Object... kv) {
         log(Level.INFO, evt, kv);
@@ -115,16 +114,16 @@ public final class Log {
         if (kv != null && kv.length > 0) {
             for (int i = 0; i < kv.length; i += 2) {
                 sb.append(" ").append(kv[i]).append("=")
-                  .append(escape(String.valueOf((i + 1 < kv.length) ? kv[i + 1] : "null")));
+                    .append(escape(String.valueOf((i + 1 < kv.length) ? kv[i + 1] : "null")));
             }
         }
 
         if (t != null) {
             sb.append(" err=").append(escape(t.getClass().getSimpleName()))
-              .append(" msg=").append(escape(t.getMessage()));
+                .append(" msg=").append(escape(t.getMessage()));
 
             if (t.getStackTrace().length > 0) {
-                 sb.append(" loc=").append(escape(t.getStackTrace()[0].toString()));
+                sb.append(" loc=").append(escape(t.getStackTrace()[0].toString()));
             }
         }
 

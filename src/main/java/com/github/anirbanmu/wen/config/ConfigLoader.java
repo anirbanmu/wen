@@ -1,18 +1,16 @@
 package com.github.anirbanmu.wen.config;
 
-import org.tomlj.Toml;
-import org.tomlj.TomlParseResult;
-import org.tomlj.TomlTable;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.tomlj.Toml;
+import org.tomlj.TomlParseResult;
+import org.tomlj.TomlTable;
 
 public class ConfigLoader {
     public static WenConfig load(Path path) throws IOException {
@@ -39,7 +37,7 @@ public class ConfigLoader {
 
         List<CalendarSource> sources = new ArrayList<>();
         if (!result.isArray("sources")) {
-             throw new ConfigException("Configuration must contain a 'sources' array.");
+            throw new ConfigException("Configuration must contain a 'sources' array.");
         }
 
         for (Object obj : result.getArray("sources").toList()) {
@@ -80,10 +78,10 @@ public class ConfigLoader {
         java.time.Duration refreshInterval = java.time.Duration.ofHours(6); // Default
         if (refreshStr != null) {
             try {
-                // Simple parsing for "PT1H", "PT30M" etc. Standard ISO-8601 duration
+                // simple parsing for "PT1H", "PT30M" etc. Standard ISO-8601 duration
                 refreshInterval = java.time.Duration.parse(refreshStr);
             } catch (Exception e) {
-                 throw new ConfigException("Source '" + name + "' has invalid 'refreshInterval': " + refreshStr);
+                throw new ConfigException("Source '" + name + "' has invalid 'refreshInterval': " + refreshStr);
             }
         }
 
@@ -111,9 +109,11 @@ public class ConfigLoader {
     }
 
     private static String getContext(TomlTable table) {
-         // Best effort to identify the table for error messages
-         String name = table.getString("name");
-         if (name != null) return name;
-         return "unknown";
+        // best effort to identify the table for error messages
+        String name = table.getString("name");
+        if (name != null) {
+            return name;
+        }
+        return "unknown";
     }
 }

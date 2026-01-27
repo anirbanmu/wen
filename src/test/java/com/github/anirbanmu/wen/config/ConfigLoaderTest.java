@@ -1,8 +1,9 @@
 package com.github.anirbanmu.wen.config;
 
-import org.junit.jupiter.api.Test;
-import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
 
 class ConfigLoaderTest {
 

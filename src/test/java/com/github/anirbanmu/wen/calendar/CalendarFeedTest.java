@@ -1,15 +1,13 @@
 package com.github.anirbanmu.wen.calendar;
 
-import com.github.anirbanmu.wen.config.CalendarSource;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 public class CalendarFeedTest {
 
@@ -29,37 +27,35 @@ public class CalendarFeedTest {
         String recurringStart = icalFmt.format(now.minus(Duration.ofDays(10)));
 
         String ics = """
-                BEGIN:VCALENDAR
-                VERSION:2.0
-                PRODID:-//wen//test
-                BEGIN:VEVENT
-                UID:past-1
-                DTSTAMP:%s
-                DTSTART:%s
-                DTEND:%s
-                SUMMARY:past event
-                END:VEVENT
-                BEGIN:VEVENT
-                UID:future-1
-                DTSTAMP:%s
-                DTSTART:%s
-                DTEND:%s
-                SUMMARY:future event
-                END:VEVENT
-                BEGIN:VEVENT
-                UID:recurring-1
-                DTSTAMP:%s
-                DTSTART:%s
-                DURATION:PT1H
-                RRULE:FREQ=DAILY;COUNT=100
-                SUMMARY:recurring event
-                END:VEVENT
-                END:VCALENDAR
-                """.formatted(
-                        pastStart, pastStart, pastEnd,
-                        futureStart, futureStart, futureEnd,
-                        recurringStart, recurringStart
-                );
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//wen//test
+            BEGIN:VEVENT
+            UID:past-1
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:past event
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:future-1
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:future event
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:recurring-1
+            DTSTAMP:%s
+            DTSTART:%s
+            DURATION:PT1H
+            RRULE:FREQ=DAILY;COUNT=100
+            SUMMARY:recurring event
+            END:VEVENT
+            END:VCALENDAR
+            """.formatted(pastStart, pastStart, pastEnd,
+            futureStart, futureStart, futureEnd,
+            recurringStart, recurringStart);
 
         List<CalendarEvent> events = CalendarFeed.parse(ics);
 
@@ -74,9 +70,9 @@ public class CalendarFeedTest {
 
         // verify the first recurring event instances are actually in the future
         CalendarEvent firstRecurring = events.stream()
-                .filter(e -> e.summary().equals("recurring event"))
-                .min((a, b) -> a.start().compareTo(b.start()))
-                .orElseThrow();
+            .filter(e -> e.summary().equals("recurring event"))
+            .min((a, b) -> a.start().compareTo(b.start()))
+            .orElseThrow();
 
         assertFalse(firstRecurring.start().isBefore(now.minusSeconds(1)), "first recurring instance should not be in the past (allow 1s buffer for clock skew)");
     }
