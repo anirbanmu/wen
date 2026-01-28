@@ -95,7 +95,13 @@ public class ConfigLoader {
             }
         }
 
-        return new CalendarSource(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(matchers), isDefault);
+        Optional<EventMatcher> defaultMatcher = Optional.empty();
+        if (table.isTable("defaultMatcher")) {
+            defaultMatcher = Optional.of(parseMatcher(table.getTable("defaultMatcher"), name + ".defaultMatcher"));
+        }
+
+        return new CalendarSource(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(matchers),
+            defaultMatcher, isDefault);
     }
 
     private static EventMatcher parseMatcher(TomlTable table, String context) {

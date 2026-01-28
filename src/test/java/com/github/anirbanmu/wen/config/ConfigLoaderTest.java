@@ -49,12 +49,37 @@ class ConfigLoaderTest {
         assertEquals("qualifying", quali.contains());
         assertTrue(quali.field().isEmpty());
 
+        // defaultMatcher should be empty when not specified
+        assertTrue(f1.defaultMatcher().isEmpty());
+
         // Check Office Source
         CalendarSource office = config.sources().get(1);
         assertEquals("Office Calendar", office.name());
         assertFalse(office.isDefault());
         assertEquals(1, office.keywords().size());
         assertEquals("office", office.keywords().get(0));
+        assertTrue(office.defaultMatcher().isEmpty());
+    }
+
+    @Test
+    void testDefaultMatcher() {
+        String toml = """
+            [[sources]]
+            keywords = ["moto2"]
+            name = "Moto2"
+            url = "https://example.com/motogp.ics"
+
+            [sources.defaultMatcher]
+            contains = "moto2"
+            field = "summary"
+            """;
+
+        WenConfig config = ConfigLoader.load(toml);
+        CalendarSource moto2 = config.sources().get(0);
+
+        assertTrue(moto2.defaultMatcher().isPresent());
+        assertEquals("moto2", moto2.defaultMatcher().get().contains());
+        assertEquals(Optional.of("summary"), moto2.defaultMatcher().get().field());
     }
 
     @Test
