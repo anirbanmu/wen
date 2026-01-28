@@ -43,6 +43,7 @@
         <artifactId>maven-jar-plugin</artifactId>
         <version>3.5.0</version>
         <configuration>
+          <forceCreation>true</forceCreation>
           <archive>
             <manifest>
               <mainClass>com.github.anirbanmu.wen.Main</mainClass>
