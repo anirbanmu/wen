@@ -57,7 +57,7 @@ public class CalendarFeedTest {
             futureStart, futureStart, futureEnd,
             recurringStart, recurringStart);
 
-        List<CalendarEvent> events = CalendarFeed.parse(ics);
+        List<CalendarEvent> events = CalendarFeed.parse(ics, _ -> true);
 
         assertFalse(events.stream().anyMatch(e -> e.summary().equals("past event")),
             "past event (2 days ago) should be filtered");
@@ -74,6 +74,7 @@ public class CalendarFeedTest {
             .min((a, b) -> a.start().compareTo(b.start()))
             .orElseThrow();
 
-        assertFalse(firstRecurring.start().isBefore(now.minusSeconds(1)), "first recurring instance should not be in the past (allow 1s buffer for clock skew)");
+        assertFalse(firstRecurring.start().isBefore(now.minusSeconds(1)),
+            "first recurring instance should not be in the past (allow 1s buffer for clock skew)");
     }
 }

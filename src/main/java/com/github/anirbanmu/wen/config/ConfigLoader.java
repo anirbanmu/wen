@@ -110,8 +110,16 @@ public class ConfigLoader {
             throw new ConfigException("Matcher '" + context + "' missing required 'contains' field.");
         }
 
-        String field = table.getString("field");
-        return new EventMatcher(contains, Optional.ofNullable(field));
+        String fieldStr = table.getString("field");
+        Optional<MatchField> field = Optional.empty();
+        if (fieldStr != null) {
+            try {
+                field = Optional.of(MatchField.fromString(fieldStr));
+            } catch (IllegalArgumentException e) {
+                throw new ConfigException("Matcher '" + context + "': " + e.getMessage());
+            }
+        }
+        return new EventMatcher(contains, field);
     }
 
     private static String getContext(TomlTable table) {

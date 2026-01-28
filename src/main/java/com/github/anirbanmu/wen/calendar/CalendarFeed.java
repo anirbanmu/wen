@@ -17,17 +17,24 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.function.Predicate;
 
 public class CalendarFeed {
     private final String url;
     private final Duration refreshInterval;
+    private final Predicate<CalendarEvent> filter;
     private final Thread thread;
     private final HttpClient client;
     private volatile List<CalendarEvent> events = Collections.emptyList();
 
     public CalendarFeed(String url, Duration refreshInterval) {
+        this(url, refreshInterval, _ -> true);
+    }
+
+    public CalendarFeed(String url, Duration refreshInterval, Predicate<CalendarEvent> filter) {
         this.url = url;
         this.refreshInterval = refreshInterval;
+        this.filter = filter;
         this.client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
         this.thread = Thread.ofVirtual().name("calendar-" + url.hashCode()).unstarted(this::runLoop);
         this.thread.start();
@@ -66,12 +73,12 @@ public class CalendarFeed {
             return;
         }
 
-        List<CalendarEvent> newEvents = parse(response.body());
-        this.events = List.copyOf(newEvents);
-        Log.info("calendar_refreshed", "url", url, "count", newEvents.size());
+        List<CalendarEvent> events = parse(response.body(), filter);
+        this.events = events;
+        Log.info("calendar_refreshed", "url", url, "count", events.size());
     }
 
-    static List<CalendarEvent> parse(String body) {
+    static List<CalendarEvent> parse(String body, Predicate<CalendarEvent> filter) {
         ICalendar ical = Biweekly.parse(body).first();
         if (ical == null) {
             return Collections.emptyList();
@@ -94,7 +101,10 @@ public class CalendarFeed {
             if (iterator == null) {
                 // non-recurring
                 if (start.toInstant().isAfter(now)) {
-                    newEvents.add(createEvent(event, start.toInstant(), duration));
+                    CalendarEvent ce = createEvent(event, start.toInstant(), duration);
+                    if (filter.test(ce)) {
+                        newEvents.add(ce);
+                    }
                 }
             } else {
                 // recurring
@@ -105,7 +115,10 @@ public class CalendarFeed {
                     if (nextStart.toInstant().isAfter(maxLookahead) && addedAny) {
                         break;
                     }
-                    newEvents.add(createEvent(event, nextStart.toInstant(), duration));
+                    CalendarEvent ce = createEvent(event, nextStart.toInstant(), duration);
+                    if (filter.test(ce)) {
+                        newEvents.add(ce);
+                    }
                     addedAny = true;
                 }
             }

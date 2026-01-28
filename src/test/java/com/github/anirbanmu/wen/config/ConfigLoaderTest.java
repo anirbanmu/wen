@@ -18,7 +18,7 @@ class ConfigLoaderTest {
 
             [sources.matchers]
             r.contains = "grand prix"
-            r.field = "categories"
+            r.field = "description"
             q.contains = "qualifying"
 
             [[sources]]
@@ -43,7 +43,7 @@ class ConfigLoaderTest {
         assertEquals(2, f1.matchers().size());
         EventMatcher race = f1.matchers().get("r");
         assertEquals("grand prix", race.contains());
-        assertEquals(Optional.of("categories"), race.field());
+        assertEquals(Optional.of(MatchField.DESCRIPTION), race.field());
 
         EventMatcher quali = f1.matchers().get("q");
         assertEquals("qualifying", quali.contains());
@@ -79,7 +79,7 @@ class ConfigLoaderTest {
 
         assertTrue(moto2.defaultMatcher().isPresent());
         assertEquals("moto2", moto2.defaultMatcher().get().contains());
-        assertEquals(Optional.of("summary"), moto2.defaultMatcher().get().field());
+        assertEquals(Optional.of(MatchField.SUMMARY), moto2.defaultMatcher().get().field());
     }
 
     @Test
@@ -97,5 +97,28 @@ class ConfigLoaderTest {
 
         assertTrue(exception.getMessage().contains("missing required 'name'"),
             "Exception should mention missing name, got: " + exception.getMessage());
+    }
+
+    @Test
+    void testInvalidMatcherFieldRejected() {
+        String toml = """
+            [[sources]]
+            keywords = ["f1"]
+            name = "Formula 1"
+            url = "https://example.com/f1.ics"
+
+            [sources.matchers]
+            r.contains = "race"
+            r.field = "categories"
+            """;
+
+        ConfigException exception = assertThrows(ConfigException.class, () -> {
+            ConfigLoader.load(toml);
+        });
+
+        assertTrue(exception.getMessage().contains("Unknown match field"),
+            "Exception should mention unknown field, got: " + exception.getMessage());
+        assertTrue(exception.getMessage().contains("categories"),
+            "Exception should mention the invalid field value, got: " + exception.getMessage());
     }
 }
