@@ -77,4 +77,122 @@ public class CalendarTest {
         assertFalse(firstRecurring.start().isBefore(now.minusSeconds(1)),
             "first recurring instance should not be in the past (allow 1s buffer for clock skew)");
     }
+
+    @Test
+    public void testQueryCurrentAndUpcoming() {
+        Instant now = Instant.now();
+        DateTimeFormatter icalFmt = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneId.of("UTC"));
+
+        // event happening RIGHT NOW (started 30 min ago, ends in 30 min)
+        String currentStart = icalFmt.format(now.minus(Duration.ofMinutes(30)));
+        String currentEnd = icalFmt.format(now.plus(Duration.ofMinutes(30)));
+
+        // three future events at different times
+        String future1Start = icalFmt.format(now.plus(Duration.ofHours(1)));
+        String future1End = icalFmt.format(now.plus(Duration.ofHours(2)));
+        String future2Start = icalFmt.format(now.plus(Duration.ofHours(3)));
+        String future2End = icalFmt.format(now.plus(Duration.ofHours(4)));
+        String future3Start = icalFmt.format(now.plus(Duration.ofHours(5)));
+        String future3End = icalFmt.format(now.plus(Duration.ofHours(6)));
+
+        String ics = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//wen//test
+            BEGIN:VEVENT
+            UID:current-1
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:current event
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:future-1
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:first future
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:future-2
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:second future
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:future-3
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:third future
+            END:VEVENT
+            END:VCALENDAR
+            """.formatted(
+            currentStart, currentStart, currentEnd,
+            future1Start, future1Start, future1End,
+            future2Start, future2Start, future2End,
+            future3Start, future3Start, future3End);
+
+        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
+        assertEquals(4, events.size(), "should have 4 events (1 current + 3 future)");
+
+        // test query with limit 1
+        QueryResult result1 = Calendar.query(events, _ -> true, 1);
+        assertTrue(result1.current().isPresent(), "should detect current event");
+        assertEquals("current event", result1.current().get().summary());
+        assertEquals(1, result1.upcoming().size(), "should have 1 upcoming");
+        assertEquals("first future", result1.upcoming().getFirst().summary());
+
+        // test query with limit 2
+        QueryResult result2 = Calendar.query(events, _ -> true, 2);
+        assertEquals(2, result2.upcoming().size());
+        assertEquals("first future", result2.upcoming().get(0).summary());
+        assertEquals("second future", result2.upcoming().get(1).summary());
+
+        // test predicate filtering
+        QueryResult filtered = Calendar.query(events, e -> e.summary().contains("future"), 10);
+        assertFalse(filtered.current().isPresent(), "current event doesn't match filter");
+        assertEquals(3, filtered.upcoming().size(), "all 3 future events match");
+    }
+
+    @Test
+    public void testQuerySortedOrder() {
+        Instant now = Instant.now();
+        DateTimeFormatter icalFmt = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneId.of("UTC"));
+
+        // add events OUT OF ORDER in ics
+        String laterStart = icalFmt.format(now.plus(Duration.ofHours(5)));
+        String laterEnd = icalFmt.format(now.plus(Duration.ofHours(6)));
+        String soonerStart = icalFmt.format(now.plus(Duration.ofHours(1)));
+        String soonerEnd = icalFmt.format(now.plus(Duration.ofHours(2)));
+
+        String ics = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            PRODID:-//wen//test
+            BEGIN:VEVENT
+            UID:later
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:later event
+            END:VEVENT
+            BEGIN:VEVENT
+            UID:sooner
+            DTSTAMP:%s
+            DTSTART:%s
+            DTEND:%s
+            SUMMARY:sooner event
+            END:VEVENT
+            END:VCALENDAR
+            """.formatted(laterStart, laterStart, laterEnd, soonerStart, soonerStart, soonerEnd);
+
+        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
+        QueryResult result = Calendar.query(events, _ -> true, 10);
+
+        assertEquals(2, result.upcoming().size());
+        assertEquals("sooner event", result.upcoming().get(0).summary(), "sooner event should be first");
+        assertEquals("later event", result.upcoming().get(1).summary(), "later event should be second");
+    }
 }

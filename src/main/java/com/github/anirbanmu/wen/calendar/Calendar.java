@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.TimeZone;
 import java.util.function.Predicate;
 
@@ -42,6 +43,36 @@ public class Calendar {
 
     public List<CalendarEvent> getEvents() {
         return events;
+    }
+
+    // query for events matching predicate, returns current "in-event" and upcoming
+    public QueryResult query(Predicate<CalendarEvent> predicate, int maxUpcoming) {
+        return query(events, predicate, maxUpcoming);
+    }
+
+    // static helper for query logic - allows testing without live Calendar instance
+    static QueryResult query(List<CalendarEvent> events, Predicate<CalendarEvent> predicate, int maxUpcoming) {
+        Instant now = Instant.now();
+        CalendarEvent current = null;
+        List<CalendarEvent> upcoming = new ArrayList<>();
+
+        for (CalendarEvent e : events) {
+            if (!predicate.test(e)) {
+                continue;
+            }
+
+            // are we currently inside this event? (start <= now < end)
+            if (!e.start().isAfter(now) && e.end().isAfter(now)) {
+                current = e;
+            } else if (e.start().isAfter(now)) {
+                upcoming.add(e);
+                if (upcoming.size() >= maxUpcoming) {
+                    break;
+                }
+            }
+        }
+
+        return new QueryResult(Optional.ofNullable(current), upcoming);
     }
 
     private void runLoop() {
@@ -97,30 +128,33 @@ public class Calendar {
 
             Duration duration = calculateDuration(event);
 
+            // getDateIterator works for both recurring and non-recurring events
+            // for non-recurring: produces single start date
+            // for recurring: produces all occurrences
             DateIterator iterator = event.getDateIterator(timeZone);
-            if (iterator == null) {
-                // non-recurring
-                if (start.toInstant().isAfter(now)) {
-                    CalendarEvent ce = createEvent(event, start.toInstant(), duration);
-                    if (filter.test(ce)) {
-                        newEvents.add(ce);
-                    }
+
+            // advance to (now - duration) to catch events currently in progress
+            Instant searchFrom = now.minus(duration.isZero() ? Duration.ofMinutes(1) : duration);
+            iterator.advanceTo(Date.from(searchFrom));
+
+            boolean addedAny = false;
+            while (iterator.hasNext()) {
+                Date nextStart = iterator.next();
+                Instant eventEnd = nextStart.toInstant().plus(duration);
+
+                // skip events that have already ended
+                if (!eventEnd.isAfter(now)) {
+                    continue;
                 }
-            } else {
-                // recurring
-                iterator.advanceTo(Date.from(now));
-                boolean addedAny = false;
-                while (iterator.hasNext()) {
-                    Date nextStart = iterator.next();
-                    if (nextStart.toInstant().isAfter(maxLookahead) && addedAny) {
-                        break;
-                    }
-                    CalendarEvent ce = createEvent(event, nextStart.toInstant(), duration);
-                    if (filter.test(ce)) {
-                        newEvents.add(ce);
-                    }
-                    addedAny = true;
+
+                if (nextStart.toInstant().isAfter(maxLookahead) && addedAny) {
+                    break;
                 }
+                CalendarEvent ce = createEvent(event, nextStart.toInstant(), duration);
+                if (filter.test(ce)) {
+                    newEvents.add(ce);
+                }
+                addedAny = true;
             }
         }
 
