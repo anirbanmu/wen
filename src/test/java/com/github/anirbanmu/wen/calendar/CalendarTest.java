@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-public class CalendarFeedTest {
+public class CalendarTest {
 
     @Test
     public void testParseSanity() {
@@ -57,7 +57,7 @@ public class CalendarFeedTest {
             futureStart, futureStart, futureEnd,
             recurringStart, recurringStart);
 
-        List<CalendarEvent> events = CalendarFeed.parse(ics, _ -> true);
+        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
 
         assertFalse(events.stream().anyMatch(e -> e.summary().equals("past event")),
             "past event (2 days ago) should be filtered");

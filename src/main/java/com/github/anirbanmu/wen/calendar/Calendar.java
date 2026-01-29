@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.function.Predicate;
 
-public class CalendarFeed {
+public class Calendar {
     private final String url;
     private final Duration refreshInterval;
     private final Predicate<CalendarEvent> filter;
@@ -27,16 +27,16 @@ public class CalendarFeed {
     private final HttpClient client;
     private volatile List<CalendarEvent> events = Collections.emptyList();
 
-    public CalendarFeed(String url, Duration refreshInterval) {
+    public Calendar(String url, Duration refreshInterval) {
         this(url, refreshInterval, _ -> true);
     }
 
-    public CalendarFeed(String url, Duration refreshInterval, Predicate<CalendarEvent> filter) {
+    public Calendar(String url, Duration refreshInterval, Predicate<CalendarEvent> filter) {
         this.url = url;
         this.refreshInterval = refreshInterval;
         this.filter = filter;
         this.client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
-        this.thread = Thread.ofVirtual().name("calendar-" + url.hashCode()).unstarted(this::runLoop);
+        this.thread = Thread.ofVirtual().name("calendar[" + url.hashCode() + "]").unstarted(this::runLoop);
         this.thread.start();
     }
 
@@ -50,7 +50,7 @@ public class CalendarFeed {
                 refresh();
                 Thread.sleep(refreshInterval.toMillis());
             } catch (InterruptedException e) {
-                Log.info("calendar_feed_interrupted", "url", url);
+                Log.info("calendar_interrupted", "url", url);
                 break;
             } catch (Exception e) {
                 Log.error("calendar_refresh_error", "url", url, "error", e.getMessage());
@@ -123,6 +123,9 @@ public class CalendarFeed {
                 }
             }
         }
+
+        // sort by start time
+        newEvents.sort((a, b) -> a.start().compareTo(b.start()));
         return newEvents;
     }
 
