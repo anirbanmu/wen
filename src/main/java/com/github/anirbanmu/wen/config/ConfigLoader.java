@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
@@ -95,9 +94,9 @@ public class ConfigLoader {
             }
         }
 
-        Optional<EventMatcher> defaultMatcher = Optional.empty();
+        EventMatcher defaultMatcher = null;
         if (table.isTable("defaultMatcher")) {
-            defaultMatcher = Optional.of(parseMatcher(table.getTable("defaultMatcher"), name + ".defaultMatcher"));
+            defaultMatcher = parseMatcher(table.getTable("defaultMatcher"), name + ".defaultMatcher");
         }
 
         return new CalendarSource(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(matchers),
@@ -111,10 +110,10 @@ public class ConfigLoader {
         }
 
         String fieldStr = table.getString("field");
-        Optional<MatchField> field = Optional.empty();
+        MatchField field = MatchField.SUMMARY; // default to summary if not specified
         if (fieldStr != null) {
             try {
-                field = Optional.of(MatchField.fromString(fieldStr));
+                field = MatchField.fromString(fieldStr);
             } catch (IllegalArgumentException e) {
                 throw new ConfigException("Matcher '" + context + "': " + e.getMessage());
             }

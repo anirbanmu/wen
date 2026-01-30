@@ -139,8 +139,8 @@ public class CalendarTest {
 
         // test query with limit 1
         QueryResult result1 = Calendar.query(events, _ -> true, 1);
-        assertTrue(result1.current().isPresent(), "should detect current event");
-        assertEquals("current event", result1.current().get().summary());
+        assertNotNull(result1.current(), "should detect current event");
+        assertEquals("current event", result1.current().summary());
         assertEquals(1, result1.upcoming().size(), "should have 1 upcoming");
         assertEquals("first future", result1.upcoming().getFirst().summary());
 
@@ -152,7 +152,7 @@ public class CalendarTest {
 
         // test predicate filtering
         QueryResult filtered = Calendar.query(events, e -> e.summary().contains("future"), 10);
-        assertFalse(filtered.current().isPresent(), "current event doesn't match filter");
+        assertNull(filtered.current(), "current event doesn't match filter");
         assertEquals(3, filtered.upcoming().size(), "all 3 future events match");
     }
 

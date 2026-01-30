@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 import java.util.TimeZone;
 import java.util.function.Predicate;
 
@@ -73,7 +72,7 @@ public class Calendar {
             }
         }
 
-        return new QueryResult(Optional.ofNullable(current), upcoming);
+        return new QueryResult(current, upcoming);
     }
 
     private void runLoop() {

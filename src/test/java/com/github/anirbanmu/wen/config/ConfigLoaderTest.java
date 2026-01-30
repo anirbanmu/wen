@@ -2,7 +2,6 @@ package com.github.anirbanmu.wen.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ConfigLoaderTest {
@@ -43,14 +42,14 @@ class ConfigLoaderTest {
         assertEquals(2, f1.matchers().size());
         EventMatcher race = f1.matchers().get("r");
         assertEquals("grand prix", race.contains());
-        assertEquals(Optional.of(MatchField.DESCRIPTION), race.field());
+        assertEquals(MatchField.DESCRIPTION, race.field());
 
         EventMatcher quali = f1.matchers().get("q");
         assertEquals("qualifying", quali.contains());
-        assertTrue(quali.field().isEmpty());
+        assertEquals(MatchField.SUMMARY, quali.field()); // defaults to summary when not specified
 
-        // defaultMatcher should be empty when not specified
-        assertTrue(f1.defaultMatcher().isEmpty());
+        // defaultMatcher should be null when not specified
+        assertNull(f1.defaultMatcher());
 
         // Check Office Source
         CalendarSource office = config.sources().get(1);
@@ -58,7 +57,7 @@ class ConfigLoaderTest {
         assertFalse(office.isDefault());
         assertEquals(1, office.keywords().size());
         assertEquals("office", office.keywords().get(0));
-        assertTrue(office.defaultMatcher().isEmpty());
+        assertNull(office.defaultMatcher());
     }
 
     @Test
@@ -77,9 +76,9 @@ class ConfigLoaderTest {
         WenConfig config = ConfigLoader.load(toml);
         CalendarSource moto2 = config.sources().get(0);
 
-        assertTrue(moto2.defaultMatcher().isPresent());
-        assertEquals("moto2", moto2.defaultMatcher().get().contains());
-        assertEquals(Optional.of(MatchField.SUMMARY), moto2.defaultMatcher().get().field());
+        assertNotNull(moto2.defaultMatcher());
+        assertEquals("moto2", moto2.defaultMatcher().contains());
+        assertEquals(MatchField.SUMMARY, moto2.defaultMatcher().field());
     }
 
     @Test
