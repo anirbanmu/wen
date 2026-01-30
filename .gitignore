@@ -5,3 +5,7 @@ target/
 *.class
 .mvn/wrapper/maven-wrapper.properties
 dependency-reduced-pom.xml
+
+.private/
+.env
+.env.*
