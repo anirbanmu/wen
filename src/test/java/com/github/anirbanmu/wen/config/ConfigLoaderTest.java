@@ -9,18 +9,18 @@ class ConfigLoaderTest {
     @Test
     void testLoadConfig() {
         String toml = """
-            [[sources]]
+            [[calendars]]
             keywords = ["f1", "formula1"]
             name = "Formula 1"
             url = "https://example.com/f1.ics"
-            isDefault = true
+            fallback = true
 
-            [sources.matchers]
+            [calendars.filters]
             r.contains = "grand prix"
             r.field = "description"
             q.contains = "qualifying"
 
-            [[sources]]
+            [[calendars]]
             keywords = ["office"]
             name = "Office Calendar"
             url = "https://example.com/work.ics"
@@ -29,62 +29,62 @@ class ConfigLoaderTest {
         WenConfig config = ConfigLoader.load(toml);
 
         assertNotNull(config);
-        assertEquals(2, config.sources().size());
+        assertEquals(2, config.calendars().size());
 
-        // Check F1 Source
-        CalendarSource f1 = config.sources().get(0);
+        // Check F1 Calendar
+        Calendar f1 = config.calendars().get(0);
         assertEquals("Formula 1", f1.name());
-        assertTrue(f1.isDefault());
+        assertTrue(f1.fallback());
         assertEquals(2, f1.keywords().size());
         assertTrue(f1.keywords().contains("f1"));
         assertEquals("https://example.com/f1.ics", f1.url());
 
-        assertEquals(2, f1.matchers().size());
-        EventMatcher race = f1.matchers().get("r");
+        assertEquals(2, f1.filters().size());
+        Filter race = f1.filters().get("r");
         assertEquals("grand prix", race.contains());
         assertEquals(MatchField.DESCRIPTION, race.field());
 
-        EventMatcher quali = f1.matchers().get("q");
+        Filter quali = f1.filters().get("q");
         assertEquals("qualifying", quali.contains());
         assertEquals(MatchField.SUMMARY, quali.field()); // defaults to summary when not specified
 
-        // defaultMatcher should be null when not specified
-        assertNull(f1.defaultMatcher());
+        // prefilter should be null when not specified
+        assertNull(f1.prefilter());
 
-        // Check Office Source
-        CalendarSource office = config.sources().get(1);
+        // Check Office Calendar
+        Calendar office = config.calendars().get(1);
         assertEquals("Office Calendar", office.name());
-        assertFalse(office.isDefault());
+        assertFalse(office.fallback());
         assertEquals(1, office.keywords().size());
         assertEquals("office", office.keywords().get(0));
-        assertNull(office.defaultMatcher());
+        assertNull(office.prefilter());
     }
 
     @Test
-    void testDefaultMatcher() {
+    void testPrefilter() {
         String toml = """
-            [[sources]]
+            [[calendars]]
             keywords = ["moto2"]
             name = "Moto2"
             url = "https://example.com/motogp.ics"
 
-            [sources.defaultMatcher]
+            [calendars.prefilter]
             contains = "moto2"
             field = "summary"
             """;
 
         WenConfig config = ConfigLoader.load(toml);
-        CalendarSource moto2 = config.sources().get(0);
+        Calendar moto2 = config.calendars().get(0);
 
-        assertNotNull(moto2.defaultMatcher());
-        assertEquals("moto2", moto2.defaultMatcher().contains());
-        assertEquals(MatchField.SUMMARY, moto2.defaultMatcher().field());
+        assertNotNull(moto2.prefilter());
+        assertEquals("moto2", moto2.prefilter().contains());
+        assertEquals(MatchField.SUMMARY, moto2.prefilter().field());
     }
 
     @Test
     void testMissingRequiredFields() {
         String toml = """
-            [[sources]]
+            [[calendars]]
             keywords = ["f1"]
             # name is missing
             url = "https://example.com/f1.ics"
@@ -99,14 +99,14 @@ class ConfigLoaderTest {
     }
 
     @Test
-    void testInvalidMatcherFieldRejected() {
+    void testInvalidFilterFieldRejected() {
         String toml = """
-            [[sources]]
+            [[calendars]]
             keywords = ["f1"]
             name = "Formula 1"
             url = "https://example.com/f1.ics"
 
-            [sources.matchers]
+            [calendars.filters]
             r.contains = "race"
             r.field = "foobar"
             """;

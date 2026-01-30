@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-public class CalendarTest {
+public class CalendarFeedTest {
 
     @Test
     public void testParseSanity() {
@@ -57,7 +57,7 @@ public class CalendarTest {
             futureStart, futureStart, futureEnd,
             recurringStart, recurringStart);
 
-        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
+        List<CalendarEvent> events = CalendarFeed.parse(ics, _ -> true);
 
         assertFalse(events.stream().anyMatch(e -> e.summary().equals("past event")),
             "past event (2 days ago) should be filtered");
@@ -134,24 +134,24 @@ public class CalendarTest {
             future2Start, future2Start, future2End,
             future3Start, future3Start, future3End);
 
-        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
+        List<CalendarEvent> events = CalendarFeed.parse(ics, _ -> true);
         assertEquals(4, events.size(), "should have 4 events (1 current + 3 future)");
 
         // test query with limit 1
-        QueryResult result1 = Calendar.query(events, _ -> true, 1);
+        QueryResult result1 = CalendarFeed.query(events, _ -> true, 1);
         assertNotNull(result1.current(), "should detect current event");
         assertEquals("current event", result1.current().summary());
         assertEquals(1, result1.upcoming().size(), "should have 1 upcoming");
         assertEquals("first future", result1.upcoming().getFirst().summary());
 
         // test query with limit 2
-        QueryResult result2 = Calendar.query(events, _ -> true, 2);
+        QueryResult result2 = CalendarFeed.query(events, _ -> true, 2);
         assertEquals(2, result2.upcoming().size());
         assertEquals("first future", result2.upcoming().get(0).summary());
         assertEquals("second future", result2.upcoming().get(1).summary());
 
         // test predicate filtering
-        QueryResult filtered = Calendar.query(events, e -> e.summary().contains("future"), 10);
+        QueryResult filtered = CalendarFeed.query(events, e -> e.summary().contains("future"), 10);
         assertNull(filtered.current(), "current event doesn't match filter");
         assertEquals(3, filtered.upcoming().size(), "all 3 future events match");
     }
@@ -188,8 +188,8 @@ public class CalendarTest {
             END:VCALENDAR
             """.formatted(laterStart, laterStart, laterEnd, soonerStart, soonerStart, soonerEnd);
 
-        List<CalendarEvent> events = Calendar.parse(ics, _ -> true);
-        QueryResult result = Calendar.query(events, _ -> true, 10);
+        List<CalendarEvent> events = CalendarFeed.parse(ics, _ -> true);
+        QueryResult result = CalendarFeed.query(events, _ -> true, 10);
 
         assertEquals(2, result.upcoming().size());
         assertEquals("sooner event", result.upcoming().get(0).summary(), "sooner event should be first");

@@ -34,22 +34,22 @@ public class ConfigLoader {
             throw new ConfigException(sb.toString());
         }
 
-        List<CalendarSource> sources = new ArrayList<>();
-        if (!result.isArray("sources")) {
-            throw new ConfigException("Configuration must contain a 'sources' array.");
+        List<Calendar> calendars = new ArrayList<>();
+        if (!result.isArray("calendars")) {
+            throw new ConfigException("Configuration must contain a 'calendars' array.");
         }
 
-        for (Object obj : result.getArray("sources").toList()) {
+        for (Object obj : result.getArray("calendars").toList()) {
             if (obj instanceof TomlTable table) {
-                sources.add(parseSource(table));
+                calendars.add(parseCalendar(table));
             }
         }
-        return new WenConfig(List.copyOf(sources));
+        return new WenConfig(List.copyOf(calendars));
     }
 
-    private static CalendarSource parseSource(TomlTable table) {
+    private static Calendar parseCalendar(TomlTable table) {
         if (!table.isArray("keywords")) {
-            throw new ConfigException("Source '" + getContext(table) + "' missing required 'keywords' array.");
+            throw new ConfigException("Calendar '" + getContext(table) + "' missing required 'keywords' array.");
         }
 
         List<String> keywords = new ArrayList<>();
@@ -58,20 +58,20 @@ public class ConfigLoader {
         }
 
         if (keywords.isEmpty()) {
-            throw new ConfigException("Source '" + getContext(table) + "' must have at least one keyword.");
+            throw new ConfigException("Calendar '" + getContext(table) + "' must have at least one keyword.");
         }
 
         String name = table.getString("name");
         if (name == null || name.isBlank()) {
-            throw new ConfigException("Source missing required 'name' field (keywords=" + keywords + ")");
+            throw new ConfigException("Calendar missing required 'name' field (keywords=" + keywords + ")");
         }
 
         String url = table.getString("url");
         if (url == null || url.isBlank()) {
-            throw new ConfigException("Source '" + name + "' missing required 'url' field.");
+            throw new ConfigException("Calendar '" + name + "' missing required 'url' field.");
         }
 
-        boolean isDefault = table.getBoolean("isDefault") != null && table.getBoolean("isDefault");
+        boolean fallback = table.getBoolean("fallback") != null && table.getBoolean("fallback");
 
         String refreshStr = table.getString("refreshInterval");
         java.time.Duration refreshInterval = java.time.Duration.ofHours(6); // Default
@@ -80,33 +80,33 @@ public class ConfigLoader {
                 // simple parsing for "PT1H", "PT30M" etc. Standard ISO-8601 duration
                 refreshInterval = java.time.Duration.parse(refreshStr);
             } catch (Exception e) {
-                throw new ConfigException("Source '" + name + "' has invalid 'refreshInterval': " + refreshStr);
+                throw new ConfigException("Calendar '" + name + "' has invalid 'refreshInterval': " + refreshStr);
             }
         }
 
-        Map<String, EventMatcher> matchers = new HashMap<>();
-        if (table.isTable("matchers")) {
-            TomlTable matchersTable = table.getTable("matchers");
-            for (String key : matchersTable.keySet()) {
-                if (matchersTable.isTable(key)) {
-                    matchers.put(key, parseMatcher(matchersTable.getTable(key), name + "." + key));
+        Map<String, Filter> filters = new HashMap<>();
+        if (table.isTable("filters")) {
+            TomlTable filtersTable = table.getTable("filters");
+            for (String key : filtersTable.keySet()) {
+                if (filtersTable.isTable(key)) {
+                    filters.put(key, parseFilter(filtersTable.getTable(key), name + "." + key));
                 }
             }
         }
 
-        EventMatcher defaultMatcher = null;
-        if (table.isTable("defaultMatcher")) {
-            defaultMatcher = parseMatcher(table.getTable("defaultMatcher"), name + ".defaultMatcher");
+        Filter prefilter = null;
+        if (table.isTable("prefilter")) {
+            prefilter = parseFilter(table.getTable("prefilter"), name + ".prefilter");
         }
 
-        return new CalendarSource(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(matchers),
-            defaultMatcher, isDefault);
+        return new Calendar(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(filters),
+            prefilter, fallback);
     }
 
-    private static EventMatcher parseMatcher(TomlTable table, String context) {
+    private static Filter parseFilter(TomlTable table, String context) {
         String contains = table.getString("contains");
         if (contains == null) {
-            throw new ConfigException("Matcher '" + context + "' missing required 'contains' field.");
+            throw new ConfigException("Filter '" + context + "' missing required 'contains' field.");
         }
 
         String fieldStr = table.getString("field");
@@ -115,10 +115,10 @@ public class ConfigLoader {
             try {
                 field = MatchField.fromString(fieldStr);
             } catch (IllegalArgumentException e) {
-                throw new ConfigException("Matcher '" + context + "': " + e.getMessage());
+                throw new ConfigException("Filter '" + context + "': " + e.getMessage());
             }
         }
-        return new EventMatcher(contains.toLowerCase(), field);
+        return new Filter(contains.toLowerCase(), field);
     }
 
     private static String getContext(TomlTable table) {

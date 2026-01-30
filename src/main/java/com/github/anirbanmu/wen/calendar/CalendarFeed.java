@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.function.Predicate;
 
-public class Calendar {
+public class CalendarFeed {
     private static final int MAX_OCCURRENCES_PER_EVENT = 100;
     private final String url;
     private final Duration refreshInterval;
@@ -28,11 +28,11 @@ public class Calendar {
     private final HttpClient client;
     private volatile List<CalendarEvent> events = Collections.emptyList();
 
-    public Calendar(String url, Duration refreshInterval) {
+    public CalendarFeed(String url, Duration refreshInterval) {
         this(url, refreshInterval, _ -> true);
     }
 
-    public Calendar(String url, Duration refreshInterval, Predicate<CalendarEvent> filter) {
+    public CalendarFeed(String url, Duration refreshInterval, Predicate<CalendarEvent> filter) {
         this.url = url;
         this.refreshInterval = refreshInterval;
         this.filter = filter;
@@ -50,7 +50,8 @@ public class Calendar {
         return query(events, predicate, maxUpcoming);
     }
 
-    // static helper for query logic - allows testing without live Calendar instance
+    // static helper for query logic - allows testing without live CalendarFeed
+    // instance
     static QueryResult query(List<CalendarEvent> events, Predicate<CalendarEvent> predicate, int maxUpcoming) {
         Instant now = Instant.now();
         CalendarEvent current = null;
