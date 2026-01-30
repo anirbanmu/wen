@@ -109,7 +109,7 @@ class ConfigLoaderTest {
 
             [sources.matchers]
             r.contains = "race"
-            r.field = "categories"
+            r.field = "foobar"
             """;
 
         ConfigException exception = assertThrows(ConfigException.class, () -> {
@@ -118,7 +118,7 @@ class ConfigLoaderTest {
 
         assertTrue(exception.getMessage().contains("Unknown match field"),
             "Exception should mention unknown field, got: " + exception.getMessage());
-        assertTrue(exception.getMessage().contains("categories"),
+        assertTrue(exception.getMessage().contains("foobar"),
             "Exception should mention the invalid field value, got: " + exception.getMessage());
     }
 }

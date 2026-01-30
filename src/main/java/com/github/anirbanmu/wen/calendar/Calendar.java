@@ -187,7 +187,10 @@ public class Calendar {
         String summary = event.getSummary() != null ? event.getSummary().getValue() : "No Title";
         String location = event.getLocation() != null ? event.getLocation().getValue() : null;
         String description = event.getDescription() != null ? event.getDescription().getValue() : null;
+        List<String> categories = event.getCategories().stream()
+            .flatMap(c -> c.getValues().stream())
+            .toList();
 
-        return new CalendarEvent(summary, start, end, location, description);
+        return new CalendarEvent(summary, start, end, location, description, categories);
     }
 }

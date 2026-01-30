@@ -1,15 +1,16 @@
 package com.github.anirbanmu.wen.config;
 
 public enum MatchField {
-    SUMMARY, LOCATION, DESCRIPTION;
+    SUMMARY, LOCATION, DESCRIPTION, CATEGORIES;
 
     public static MatchField fromString(String value) {
         return switch (value.toLowerCase()) {
             case "summary" -> SUMMARY;
             case "location" -> LOCATION;
             case "description" -> DESCRIPTION;
+            case "categories" -> CATEGORIES;
             default -> throw new IllegalArgumentException(
-                "Unknown match field: '" + value + "'. Valid fields: summary, location, description");
+                "Unknown match field: '" + value + "'. Valid fields: summary, location, description, categories");
         };
     }
 }
