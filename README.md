@@ -41,13 +41,13 @@ Query iCal feeds via slash commands.
 
 Under the **Bot** tab, configure:
 
-| Setting | Value | Reason |
-|---------|-------|--------|
-| Public Bot | Your choice | Whether others can invite it |
-| Requires OAuth2 Code Grant | ❌ Off | Not needed |
-| Presence Intent | ❌ Off | We don't track presence |
-| Server Members Intent | ❌ Off | We don't need member lists |
-| Message Content Intent | ❌ Off | We use slash commands only |
+|          Setting           |    Value    |            Reason            |
+|----------------------------|-------------|------------------------------|
+| Public Bot                 | Your choice | Whether others can invite it |
+| Requires OAuth2 Code Grant | ❌ Off       | Not needed                   |
+| Presence Intent            | ❌ Off       | We don't track presence      |
+| Server Members Intent      | ❌ Off       | We don't need member lists   |
+| Message Content Intent     | ❌ Off       | We use slash commands only   |
 
 ### 4. Required Permissions
 
@@ -99,22 +99,22 @@ contains = "Sprint"
 
 ### Source Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | ✅ | Display name for the source |
-| `url` | ✅ | iCal feed URL |
-| `keywords` | ✅ | Trigger words (e.g., `["f1", "formula1"]`) |
-| `refreshInterval` | ❌ | How often to refresh (default: `PT6H`) |
-| `isDefault` | ❌ | Use when no keyword matches (default: `false`) |
-| `defaultMatcher` | ❌ | Filter applied to all events from this source |
-| `matchers.<name>` | ❌ | Named filters users can specify |
+|       Field       | Required |                  Description                   |
+|-------------------|----------|------------------------------------------------|
+| `name`            | ✅        | Display name for the source                    |
+| `url`             | ✅        | iCal feed URL                                  |
+| `keywords`        | ✅        | Trigger words (e.g., `["f1", "formula1"]`)     |
+| `refreshInterval` | ❌        | How often to refresh (default: `PT6H`)         |
+| `isDefault`       | ❌        | Use when no keyword matches (default: `false`) |
+| `defaultMatcher`  | ❌        | Filter applied to all events from this source  |
+| `matchers.<name>` | ❌        | Named filters users can specify                |
 
 ### Matcher Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `contains` | ✅ | Substring to match (case-insensitive) |
-| `field` | ❌ | Which field to match: `summary`, `description`, `location` (default: `summary`) |
+|   Field    | Required |                                   Description                                   |
+|------------|----------|---------------------------------------------------------------------------------|
+| `contains` | ✅        | Substring to match (case-insensitive)                                           |
+| `field`    | ❌        | Which field to match: `summary`, `description`, `location` (default: `summary`) |
 
 ---
 

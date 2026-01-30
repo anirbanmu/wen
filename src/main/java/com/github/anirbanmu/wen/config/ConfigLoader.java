@@ -119,7 +119,7 @@ public class ConfigLoader {
                 throw new ConfigException("Matcher '" + context + "': " + e.getMessage());
             }
         }
-        return new EventMatcher(contains, field);
+        return new EventMatcher(contains.toLowerCase(), field);
     }
 
     private static String getContext(TomlTable table) {

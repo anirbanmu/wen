@@ -21,6 +21,7 @@ import java.util.TimeZone;
 import java.util.function.Predicate;
 
 public class Calendar {
+    private static final int MAX_OCCURRENCES_PER_EVENT = 100;
     private final String url;
     private final Duration refreshInterval;
     private final Predicate<CalendarEvent> filter;
@@ -137,7 +138,7 @@ public class Calendar {
             Instant searchFrom = now.minus(duration.isZero() ? Duration.ofMinutes(1) : duration);
             iterator.advanceTo(Date.from(searchFrom));
 
-            boolean addedAny = false;
+            int occurrences = 0;
             while (iterator.hasNext()) {
                 Date nextStart = iterator.next();
                 Instant eventEnd = nextStart.toInstant().plus(duration);
@@ -147,14 +148,19 @@ public class Calendar {
                     continue;
                 }
 
-                if (nextStart.toInstant().isAfter(maxLookahead) && addedAny) {
+                if (nextStart.toInstant().isAfter(maxLookahead) && occurrences > 0) {
                     break;
                 }
+
+                if (occurrences >= MAX_OCCURRENCES_PER_EVENT) {
+                    break;
+                }
+
                 CalendarEvent ce = createEvent(event, nextStart.toInstant(), duration);
                 if (filter.test(ce)) {
                     newEvents.add(ce);
                 }
-                addedAny = true;
+                occurrences++;
             }
         }
 
