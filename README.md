@@ -62,6 +62,8 @@ Under the **Bot** tab, configure:
 
 1. Go to **OAuth2** → **URL Generator**
 2. Select scopes: `bot`, `applications.commands`
+   - **Note:** `bot` is required for the bot to appear in the member list.
+   - `applications.commands` is required for slash commands.
 3. Bot permissions: none
 4. Copy the generated URL and open it to invite the bot to your server
 
@@ -143,6 +145,14 @@ Produces a shaded JAR in `target/`.
 
 ```bash
 java -jar target/wen.jar
+```
+
+## Development
+
+Run locally:
+
+```bash
+DISCORD_TOKEN="your_token" mvn exec:java -Dexec.mainClass="com.github.anirbanmu.wen.Main"
 ```
 
 ---

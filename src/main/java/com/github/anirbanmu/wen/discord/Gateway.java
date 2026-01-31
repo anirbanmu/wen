@@ -18,14 +18,17 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
-public class Gateway implements WebSocket.Listener {
+public class Gateway {
     private static final String GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
-    private static final int GATEWAY_INTENTS = 0; // no privileged intents needed for slash commands
+    private static final int GATEWAY_INTENTS = 0;
     private static final int OP_IDENTIFY = 2;
     private static final int OP_RESUME = 6;
+    private static final long MAX_RECONNECT_DELAY_MS = 30_000;
 
     private final String token;
     private final HttpClient httpClient;
@@ -34,18 +37,17 @@ public class Gateway implements WebSocket.Listener {
     private final Consumer<Interaction> interactionHandler;
     private final ExecutorService handlerExecutor;
 
-    // cross-thread state
-    private volatile WebSocket socket;
-    private volatile Thread heartbeatThread;
-    private volatile long heartbeatInterval;
-    private volatile boolean heartbeatAcked = true;
+    // persists across reconnects
     private volatile boolean running;
     private volatile String sessionId;
     private volatile String resumeGatewayUrl;
     private final AtomicInteger lastSequence = new AtomicInteger(-1);
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 
-    // only accessed from websocket callback thread
-    private final StringBuilder messageBuffer = new StringBuilder();
+    // session management
+    private final ReentrantLock sessionLock = new ReentrantLock();
+    private Session currentSession;
 
     public Gateway(String token, Consumer<Interaction> interactionHandler) {
         this.token = token;
@@ -64,30 +66,54 @@ public class Gateway implements WebSocket.Listener {
     }
 
     private void doConnect(String url) {
-        Log.info("gateway.connecting", "url", url);
-        httpClient.newWebSocketBuilder()
-            .buildAsync(URI.create(url), this)
-            .thenAccept(ws -> {
-                socket = ws;
-                Log.info("gateway.connected");
-            })
-            .exceptionally(ex -> {
-                Log.error("gateway.connect_failed", ex);
-                scheduleReconnect();
-                return null;
-            });
+        sessionLock.lock();
+        try {
+            if (currentSession != null) {
+                currentSession.close();
+                currentSession = null;
+            }
+
+            Log.info("gateway.connecting", "url", url);
+            Session session = new Session() {
+                @Override
+                void onSessionClosed() {
+                    if (running) {
+                        scheduleReconnect();
+                    }
+                }
+            };
+            currentSession = session;
+
+            httpClient.newWebSocketBuilder()
+                .buildAsync(URI.create(url), session)
+                .exceptionally(ex -> {
+                    Log.error("gateway.connect_failed", ex);
+                    // connection failed, clear resume state so next attempt uses default URL
+                    sessionId = null;
+                    resumeGatewayUrl = null;
+                    if (running) {
+                        scheduleReconnect();
+                    }
+                    return null;
+                });
+        } finally {
+            sessionLock.unlock();
+        }
     }
 
     public void disconnect() {
         running = false;
 
-        // stop heartbeat
-        Thread hb = heartbeatThread;
-        if (hb != null) {
-            hb.interrupt();
+        sessionLock.lock();
+        try {
+            if (currentSession != null) {
+                currentSession.close();
+                currentSession = null;
+            }
+        } finally {
+            sessionLock.unlock();
         }
 
-        // wait for in-flight handlers
         handlerExecutor.shutdown();
         try {
             if (!handlerExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -96,189 +122,21 @@ public class Gateway implements WebSocket.Listener {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
-
-        // close socket
-        WebSocket ws = socket;
-        if (ws != null) {
-            ws.sendClose(WebSocket.NORMAL_CLOSURE, "shutdown");
-        }
-    }
-
-    @Override
-    public void onOpen(WebSocket webSocket) {
-        webSocket.request(1);
-    }
-
-    @Override
-    public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        messageBuffer.append(data);
-        if (last) {
-            handleMessage(messageBuffer.toString());
-            messageBuffer.setLength(0);
-        }
-        webSocket.request(1);
-        return null;
-    }
-
-    @Override
-    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        Log.info("gateway.closed", "code", statusCode, "reason", reason);
-        if (running) {
-            scheduleReconnect();
-        }
-        return null;
-    }
-
-    @Override
-    public void onError(WebSocket webSocket, Throwable error) {
-        Log.error("gateway.error", error);
-        if (running) {
-            scheduleReconnect();
-        }
-    }
-
-    private void handleMessage(String raw) {
-        try {
-            ParseResult result = parser.parse(raw);
-
-            // only update sequence if higher (monotonically increasing)
-            if (result.sequence() != null) {
-                lastSequence.updateAndGet(current -> Math.max(current, result.sequence()));
-            }
-
-            GatewayEvent event = result.event();
-            if (event == null) {
-                return;
-            }
-
-            switch (event) {
-                case GatewayEvent.Hello hello -> {
-                    heartbeatInterval = hello.heartbeatInterval();
-                    Log.info("gateway.hello", "interval_ms", hello.heartbeatInterval());
-                    startHeartbeat();
-                    if (sessionId != null && resumeGatewayUrl != null) {
-                        sendResume();
-                    } else {
-                        sendIdentify();
-                    }
-                }
-                case GatewayEvent.Ready ready -> {
-                    sessionId = ready.sessionId();
-                    resumeGatewayUrl = ready.resumeGatewayUrl();
-                    Log.info("gateway.ready", "session", sessionId);
-                }
-                case GatewayEvent.InteractionCreate ic -> {
-                    if (interactionHandler != null) {
-                        Interaction interaction = ic.interaction();
-                        handlerExecutor.execute(() -> interactionHandler.accept(interaction));
-                    }
-                }
-                case GatewayEvent.HeartbeatRequest _ -> sendHeartbeat();
-                case GatewayEvent.HeartbeatAck _ -> heartbeatAcked = true;
-                case GatewayEvent.Reconnect _ -> {
-                    Log.info("gateway.reconnect_requested");
-                    WebSocket ws = socket;
-                    if (ws != null) {
-                        ws.sendClose(WebSocket.NORMAL_CLOSURE, "reconnect");
-                    }
-                }
-                case GatewayEvent.InvalidSession invalid -> {
-                    Log.info("gateway.invalid_session", "resumable", invalid.resumable());
-                    if (!invalid.resumable()) {
-                        sessionId = null;
-                        resumeGatewayUrl = null;
-                    }
-                    scheduleReconnect();
-                }
-            }
-        } catch (Exception ex) {
-            Log.error("gateway.message_error", ex);
-        }
-    }
-
-    private void sendIdentify() {
-        Identify identify = Identify.create(token, GATEWAY_INTENTS);
-        sendOpcode(OP_IDENTIFY, identify);
-        Log.info("gateway.identify_sent");
-    }
-
-    private void sendResume() {
-        String resume = String.format(
-            "{\"op\":%d,\"d\":{\"token\":\"%s\",\"session_id\":\"%s\",\"seq\":%d}}",
-            OP_RESUME, token, sessionId, lastSequence.get());
-        socket.sendText(resume, true);
-        Log.info("gateway.resume_sent");
-    }
-
-    private void sendHeartbeat() {
-        WebSocket ws = socket;
-        if (ws == null) {
-            return;
-        }
-        int seq = lastSequence.get();
-        String hb = seq < 0 ? "{\"op\":1,\"d\":null}" : "{\"op\":1,\"d\":" + seq + "}";
-        try {
-            ws.sendText(hb, true);
-        } catch (Exception ex) {
-            Log.error("gateway.heartbeat_send_failed", ex);
-            throw new RuntimeException(ex);
-        }
-    }
-
-    private <T> void sendOpcode(int op, T data) {
-        try {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            json.serialize(data, out);
-            String payload = "{\"op\":" + op + ",\"d\":" + out.toString(StandardCharsets.UTF_8) + "}";
-            socket.sendText(payload, true);
-        } catch (Exception ex) {
-            Log.error("gateway.send_failed", ex);
-        }
-    }
-
-    private void startHeartbeat() {
-        Thread hb = heartbeatThread;
-        if (hb != null) {
-            hb.interrupt();
-        }
-
-        heartbeatThread = Thread.ofVirtual().name("heartbeat").start(() -> {
-            try {
-                // initial jitter per discord docs
-                Thread.sleep((long) (heartbeatInterval * Math.random()));
-                while (running && !Thread.currentThread().isInterrupted()) {
-                    if (!heartbeatAcked) {
-                        Log.warn("gateway.heartbeat_timeout");
-                        WebSocket ws = socket;
-                        if (ws != null) {
-                            try {
-                                ws.sendClose(WebSocket.NORMAL_CLOSURE, "zombie");
-                            } catch (Exception ex) {
-                                Log.error("gateway.heartbeat_close_failed", ex);
-                            }
-                        }
-                        return;
-                    }
-                    heartbeatAcked = false;
-                    sendHeartbeat();
-                    Thread.sleep(heartbeatInterval);
-                }
-            } catch (InterruptedException ex) {
-                // shutdown
-            }
-        });
     }
 
     private void scheduleReconnect() {
-        if (!running) {
-            return;
-        }
+        int attempt = reconnectAttempts.incrementAndGet();
+        // exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s
+        long delay = Math.min(1000L * (1L << Math.min(attempt - 1, 4)), MAX_RECONNECT_DELAY_MS);
+        Log.info("gateway.reconnect_scheduled", "attempt", attempt, "delay_ms", delay);
 
         Thread.ofVirtual().name("reconnect").start(() -> {
             try {
-                Thread.sleep(5000); // backoff
+                Thread.sleep(delay);
                 if (running) {
-                    String url = resumeGatewayUrl != null ? resumeGatewayUrl + "?v=10&encoding=json" : GATEWAY_URL;
+                    String url = resumeGatewayUrl != null
+                        ? resumeGatewayUrl + "?v=10&encoding=json"
+                        : GATEWAY_URL;
                     doConnect(url);
                 }
             } catch (InterruptedException ex) {
@@ -288,18 +146,218 @@ public class Gateway implements WebSocket.Listener {
     }
 
     public CompletableFuture<Void> awaitReady() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        Thread.ofVirtual().start(() -> {
-            while (sessionId == null && running) {
+        return readyFuture;
+    }
+
+    // per-connection state and websocket handler
+    private abstract class Session implements WebSocket.Listener {
+        private volatile WebSocket socket;
+        private volatile Thread heartbeatThread;
+        private volatile long heartbeatInterval;
+        private volatile CompletableFuture<Void> heartbeatAck;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final StringBuilder messageBuffer = new StringBuilder();
+
+        abstract void onSessionClosed();
+
+        void close() {
+            if (!closed.compareAndSet(false, true)) {
+                return;
+            }
+
+            Thread hb = heartbeatThread;
+            if (hb != null) {
+                hb.interrupt();
+            }
+
+            WebSocket ws = socket;
+            if (ws != null) {
                 try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ex) {
-                    future.completeExceptionally(ex);
-                    return;
+                    ws.sendClose(WebSocket.NORMAL_CLOSURE, "closing");
+                } catch (Exception ex) {
+                    // already closed
                 }
             }
-            future.complete(null);
-        });
-        return future;
+
+            onSessionClosed();
+        }
+
+        @Override
+        public void onOpen(WebSocket webSocket) {
+            this.socket = webSocket;
+            Log.info("gateway.connected");
+            webSocket.request(1);
+        }
+
+        @Override
+        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            messageBuffer.append(data);
+            if (last) {
+                handleMessage(messageBuffer.toString());
+                messageBuffer.setLength(0);
+            }
+            webSocket.request(1);
+            return null;
+        }
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+            Log.info("gateway.closed", "code", statusCode, "reason", reason);
+            close();
+            return null;
+        }
+
+        @Override
+        public void onError(WebSocket webSocket, Throwable error) {
+            Log.error("gateway.error", error);
+            close();
+        }
+
+        private void handleMessage(String raw) {
+            try {
+                ParseResult result = parser.parse(raw);
+
+                if (result.sequence() != null) {
+                    lastSequence.updateAndGet(current -> Math.max(current, result.sequence()));
+                }
+
+                GatewayEvent event = result.event();
+                if (event == null) {
+                    return;
+                }
+
+                switch (event) {
+                    case GatewayEvent.Hello hello -> {
+                        heartbeatInterval = hello.heartbeatInterval();
+                        Log.info("gateway.hello", "interval_ms", hello.heartbeatInterval());
+                        startHeartbeat();
+                        if (sessionId != null && resumeGatewayUrl != null) {
+                            sendResume();
+                        } else {
+                            sendIdentify();
+                        }
+                    }
+                    case GatewayEvent.Ready ready -> {
+                        sessionId = ready.sessionId();
+                        resumeGatewayUrl = ready.resumeGatewayUrl();
+                        reconnectAttempts.set(0); // reset backoff on successful connection
+                        readyFuture.complete(null);
+                        Log.info("gateway.ready", "session", sessionId);
+                    }
+                    case GatewayEvent.InteractionCreate ic -> {
+                        if (interactionHandler != null) {
+                            Interaction interaction = ic.interaction();
+                            handlerExecutor.execute(() -> interactionHandler.accept(interaction));
+                        }
+                    }
+                    case GatewayEvent.HeartbeatRequest _ -> sendHeartbeat();
+                    case GatewayEvent.HeartbeatAck _ -> {
+                        CompletableFuture<Void> ack = heartbeatAck;
+                        if (ack != null) {
+                            ack.complete(null);
+                        }
+                    }
+                    case GatewayEvent.Reconnect _ -> {
+                        Log.info("gateway.reconnect_requested");
+                        close();
+                    }
+                    case GatewayEvent.InvalidSession invalid -> {
+                        Log.info("gateway.invalid_session", "resumable", invalid.resumable());
+                        if (!invalid.resumable()) {
+                            sessionId = null;
+                            resumeGatewayUrl = null;
+                        }
+                        close();
+                    }
+                }
+            } catch (Exception ex) {
+                Log.error("gateway.message_error", ex);
+                close(); // close session on parse error
+            }
+        }
+
+        private void sendIdentify() {
+            Identify identify = Identify.create(token, GATEWAY_INTENTS);
+            if (!sendOpcode(OP_IDENTIFY, identify)) {
+                close();
+                return;
+            }
+            Log.info("gateway.identify_sent");
+        }
+
+        private void sendResume() {
+            String resume = String.format(
+                "{\"op\":%d,\"d\":{\"token\":\"%s\",\"session_id\":\"%s\",\"seq\":%d}}",
+                OP_RESUME, token, sessionId, lastSequence.get());
+            if (closed.get()) {
+                return;
+            }
+            try {
+                socket.sendText(resume, true);
+                Log.info("gateway.resume_sent");
+            } catch (Exception ex) {
+                Log.error("gateway.resume_send_failed", ex);
+                close();
+            }
+        }
+
+        private void sendHeartbeat() {
+            WebSocket ws = socket;
+            if (ws == null || closed.get()) {
+                return;
+            }
+            int seq = lastSequence.get();
+            String hb = seq < 0 ? "{\"op\":1,\"d\":null}" : "{\"op\":1,\"d\":" + seq + "}";
+            try {
+                ws.sendText(hb, true);
+            } catch (Exception ex) {
+                Log.error("gateway.heartbeat_send_failed", ex);
+                close();
+            }
+        }
+
+        private boolean sendOpcode(int op, Object data) {
+            if (closed.get()) {
+                return false;
+            }
+            try {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                json.serialize(data, out);
+                String payload = "{\"op\":" + op + ",\"d\":" + out.toString(StandardCharsets.UTF_8) + "}";
+                socket.sendText(payload, true);
+                return true;
+            } catch (Exception ex) {
+                Log.error("gateway.send_failed", ex);
+                return false;
+            }
+        }
+
+        private void startHeartbeat() {
+            heartbeatThread = Thread.ofVirtual().name("heartbeat").start(() -> {
+                try {
+                    // initial jitter per discord docs
+                    Thread.sleep((long) (heartbeatInterval * Math.random()));
+
+                    while (!closed.get() && !Thread.currentThread().isInterrupted()) {
+                        heartbeatAck = new CompletableFuture<>();
+                        sendHeartbeat();
+
+                        Thread.sleep(heartbeatInterval);
+
+                        // check if ack arrived during sleep
+                        if (!heartbeatAck.isDone()) {
+                            Log.warn("gateway.heartbeat_timeout");
+                            close();
+                            return;
+                        }
+                    }
+                } catch (InterruptedException ex) {
+                    // shutdown
+                } catch (Exception ex) {
+                    Log.error("gateway.heartbeat_error", ex);
+                    close();
+                }
+            });
+        }
     }
 }
