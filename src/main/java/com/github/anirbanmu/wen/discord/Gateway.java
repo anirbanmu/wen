@@ -50,7 +50,9 @@ public class Gateway implements WebSocket.Listener {
     public Gateway(String token, Consumer<Interaction> interactionHandler) {
         this.token = token;
         this.interactionHandler = interactionHandler;
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+            .executor(Executors.newVirtualThreadPerTaskExecutor())
+            .build();
         this.json = new DslJson<>(Settings.withRuntime().includeServiceLoader());
         this.parser = new GatewayEventParser(json);
         this.handlerExecutor = Executors.newVirtualThreadPerTaskExecutor();
