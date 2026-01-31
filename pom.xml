@@ -9,6 +9,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
+    <dsl-json.version>2.0.2</dsl-json.version>
   </properties>
 
   <dependencies>
@@ -28,6 +29,11 @@
       <artifactId>biweekly</artifactId>
       <version>0.6.8</version>
     </dependency>
+    <dependency>
+      <groupId>com.dslplatform</groupId>
+      <artifactId>dsl-json</artifactId>
+      <version>${dsl-json.version}</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -37,6 +43,15 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.14.1</version>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.dslplatform</groupId>
+              <artifactId>dsl-json</artifactId>
+              <version>${dsl-json.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
