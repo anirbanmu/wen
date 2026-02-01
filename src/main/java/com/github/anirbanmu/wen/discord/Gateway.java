@@ -242,7 +242,10 @@ public class Gateway {
                         resumeGatewayUrl = ready.resumeGatewayUrl();
                         reconnectAttempts.set(0); // reset backoff on successful connection
                         readyFuture.complete(null);
-                        Log.info("gateway.ready", "session", sessionId);
+                        String redacted = sessionId.length() > 4
+                            ? "..." + sessionId.substring(sessionId.length() - 4)
+                            : "REDACTED";
+                        Log.info("gateway.ready", "session", redacted);
                     }
                     case GatewayEvent.InteractionCreate ic -> {
                         if (interactionHandler != null) {
