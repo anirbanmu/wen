@@ -147,6 +147,6 @@ class GatewayEventParserTest {
 
         assertTrue(json.contains("\"token\":\"test-token\""));
         assertTrue(json.contains("\"intents\":513"));
-        assertTrue(json.contains("\"os\":\"linux\""));
+        assertTrue(json.contains("\"$os\":\"linux\""));
     }
 }
