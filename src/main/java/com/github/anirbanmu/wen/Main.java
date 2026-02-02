@@ -5,6 +5,7 @@ import com.github.anirbanmu.wen.config.Calendar;
 import com.github.anirbanmu.wen.config.ConfigLoader;
 import com.github.anirbanmu.wen.config.WenConfig;
 import com.github.anirbanmu.wen.discord.DiscordHttpClient;
+import com.github.anirbanmu.wen.discord.DiscordResult;
 import com.github.anirbanmu.wen.discord.Gateway;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.Command.Choice;
@@ -123,8 +124,20 @@ public class Main {
             "When is the next event?",
             List.of(calendarOption, filterOption));
 
-        httpClient.registerCommands(appId, List.of(wenCommand));
-        Log.info("commands.registered");
+        DiscordResult<Void> result = httpClient.registerCommands(appId, List.of(wenCommand));
 
+        switch (result) {
+            case DiscordResult.Success<Void> _ -> Log.info("commands.registered");
+            case DiscordResult.Failure<Void> f -> {
+                Log.error("commands.registration_failed",
+                    "message", f.message(),
+                    "status", f.statusCode());
+                if (f.exception() != null) {
+                    throw new RuntimeException("Command registration failed", f.exception());
+                } else {
+                    throw new RuntimeException("Command registration failed: " + f.message());
+                }
+            }
+        }
     }
 }

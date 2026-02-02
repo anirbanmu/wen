@@ -28,21 +28,21 @@ public class DiscordHttpClient {
         this.json = new DslJson<>(Settings.withRuntime().includeServiceLoader());
     }
 
-    public void registerCommands(String applicationId, List<Command> commands) {
+    public DiscordResult<Void> registerCommands(String applicationId, List<Command> commands) {
         String url = BASE_URL + "/applications/" + applicationId + "/commands";
         Log.info("http.register_commands", "url", url, "count", commands.size());
 
-        sendRequest(HttpRequest.newBuilder()
+        return sendRequest(HttpRequest.newBuilder()
             .uri(URI.create(url))
             .header("Authorization", "Bot " + token)
             .header("Content-Type", "application/json")
             .PUT(bodyPublisher(commands)));
     }
 
-    public void respondToInteraction(String interactionId, String interactionToken, InteractionResponse response) {
+    public DiscordResult<Void> respondToInteraction(String interactionId, String interactionToken, InteractionResponse response) {
         String url = BASE_URL + "/interactions/" + interactionId + "/" + interactionToken + "/callback";
 
-        sendRequest(HttpRequest.newBuilder()
+        return sendRequest(HttpRequest.newBuilder()
             .uri(URI.create(url))
             .header("Content-Type", "application/json")
             .POST(bodyPublisher(response)));
@@ -58,17 +58,18 @@ public class DiscordHttpClient {
         }
     }
 
-    private void sendRequest(HttpRequest.Builder builder) {
+    private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 Log.error("http.request_failed",
                     "status", response.statusCode(),
                     "body", response.body());
-                throw new RuntimeException("Discord API error: " + response.statusCode());
+                return new DiscordResult.Failure<>("Discord API error", response.statusCode());
             }
+            return new DiscordResult.Success<>(null);
         } catch (IOException | InterruptedException e) {
-            throw new RuntimeException("HTTP request failed", e);
+            return new DiscordResult.Failure<>("HTTP request failed", e);
         }
     }
 }
