@@ -1,5 +1,7 @@
 package com.github.anirbanmu.wen;
 
+import com.github.anirbanmu.wen.calendar.CalendarFeed;
+import com.github.anirbanmu.wen.config.Calendar;
 import com.github.anirbanmu.wen.config.ConfigLoader;
 import com.github.anirbanmu.wen.config.WenConfig;
 import com.github.anirbanmu.wen.discord.CommandRegistrar;
@@ -8,6 +10,8 @@ import com.github.anirbanmu.wen.discord.Gateway;
 import com.github.anirbanmu.wen.log.Log;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Main {
     public static void main(String[] args) {
@@ -41,6 +45,14 @@ public class Main {
         }
 
         Log.info("bot_startup", "status", "starting", "version", "1.0.0");
+
+        Map<String, CalendarFeed> feeds = new HashMap<>();
+        for (Calendar calConfig : config.calendars()) {
+            CalendarFeed feed = new CalendarFeed(calConfig.url(), calConfig.refreshInterval());
+            for (String keyword : calConfig.keywords()) {
+                feeds.put(keyword, feed);
+            }
+        }
 
         DiscordHttpClient httpClient = new DiscordHttpClient(token);
 
