@@ -10,6 +10,7 @@ import com.github.anirbanmu.wen.discord.Gateway;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.Command.Choice;
 import com.github.anirbanmu.wen.discord.json.Command.Option;
+import com.github.anirbanmu.wen.discord.json.InteractionResponse;
 import com.github.anirbanmu.wen.log.Log;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,10 +53,12 @@ public class Main {
         Log.info("bot_startup", "status", "starting", "version", "1.0.0");
 
         Map<String, CalendarFeed> feeds = new HashMap<>();
+        Map<String, Calendar> calendarConfigs = new HashMap<>();
         for (Calendar calConfig : config.calendars()) {
             CalendarFeed feed = new CalendarFeed(calConfig.url(), calConfig.refreshInterval());
             for (String keyword : calConfig.keywords()) {
                 feeds.put(keyword, feed);
+                calendarConfigs.put(keyword, calConfig);
             }
         }
 
@@ -68,8 +71,23 @@ public class Main {
             System.exit(1);
         }
 
+        Processor processor = new Processor(calendarConfigs, feeds);
+
         Gateway gateway = new Gateway(token, interaction -> {
             Log.info("interaction.received", "id", interaction.id());
+            try {
+                InteractionResponse response = processor.process(interaction);
+                if (response != null) {
+                    DiscordResult<Void> result = httpClient.respondToInteraction(interaction.id(), interaction.token(), response);
+                    if (result instanceof DiscordResult.Failure<Void> f) {
+                        Log.error("interaction.response_failed", "error", f.message());
+                    } else {
+                        Log.info("interaction.responded", "id", interaction.id());
+                    }
+                }
+            } catch (Exception e) {
+                Log.error("interaction.processing_error", e);
+            }
         });
 
         gateway.connect();
