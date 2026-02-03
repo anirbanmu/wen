@@ -74,19 +74,28 @@ public class Main {
         Processor processor = new Processor(calendarConfigs, feeds);
 
         Gateway gateway = new Gateway(token, interaction -> {
+            long start = System.nanoTime();
             Log.info("interaction.received", "id", interaction.id());
             try {
+                long procStart = System.nanoTime();
                 InteractionResponse response = processor.process(interaction);
+                long procMs = (System.nanoTime() - procStart) / 1_000_000;
+
                 if (response != null) {
+                    long netStart = System.nanoTime();
                     DiscordResult<Void> result = httpClient.respondToInteraction(interaction.id(), interaction.token(), response);
+                    long netMs = (System.nanoTime() - netStart) / 1_000_000;
+                    long totalMs = (System.nanoTime() - start) / 1_000_000;
+
                     if (result instanceof DiscordResult.Failure<Void> f) {
-                        Log.error("interaction.response_failed", "error", f.message());
+                        Log.error("interaction.response_failed", "error", f.message(), "proc_ms", procMs, "net_ms", netMs, "total_ms", totalMs);
                     } else {
-                        Log.info("interaction.responded", "id", interaction.id());
+                        Log.info("interaction.responded", "id", interaction.id(), "proc_ms", procMs, "net_ms", netMs, "total_ms", totalMs);
                     }
                 }
             } catch (Exception e) {
-                Log.error("interaction.processing_error", e);
+                long durationMs = (System.nanoTime() - start) / 1_000_000;
+                Log.error("interaction.processing_error", e, "duration_ms", durationMs);
             }
         });
 
