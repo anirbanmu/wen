@@ -76,11 +76,23 @@ public class CalendarFeed {
         return new QueryResult(current, upcoming);
     }
 
+    private static final java.util.concurrent.Semaphore REFRESH_LIMIT = new java.util.concurrent.Semaphore(3);
+
     private void runLoop() {
+        // initial jitter to desynchronize startup (max 5s)
+        try {
+            Thread.sleep(java.util.concurrent.ThreadLocalRandom.current().nextLong(5000));
+        } catch (InterruptedException e) {
+            return;
+        }
+
         while (true) {
             try {
                 refresh();
-                Thread.sleep(refreshInterval.toMillis());
+                // add randomness to interval to prevent drift synchronization (+/- 5s)
+                long jitter = java.util.concurrent.ThreadLocalRandom.current().nextLong(-5000, 5000);
+                long sleepTime = Math.max(0, refreshInterval.toMillis() + jitter);
+                Thread.sleep(sleepTime);
             } catch (InterruptedException e) {
                 Log.info("calendar_interrupted", "url", url);
                 break;
@@ -97,17 +109,22 @@ public class CalendarFeed {
     }
 
     private void refresh() throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        REFRESH_LIMIT.acquire();
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() != 200) {
-            Log.error("calendar_fetch_failed", "url", url, "status", response.statusCode());
-            return;
+            if (response.statusCode() != 200) {
+                Log.error("calendar_fetch_failed", "url", url, "status", response.statusCode());
+                return;
+            }
+
+            List<CalendarEvent> events = parse(response.body(), filter);
+            this.events = events;
+            Log.info("calendar_refreshed", "url", url, "count", events.size());
+        } finally {
+            REFRESH_LIMIT.release();
         }
-
-        List<CalendarEvent> events = parse(response.body(), filter);
-        this.events = events;
-        Log.info("calendar_refreshed", "url", url, "count", events.size());
     }
 
     static List<CalendarEvent> parse(String body, Predicate<CalendarEvent> filter) {
