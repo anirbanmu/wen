@@ -13,12 +13,17 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 public class DiscordHttpClient {
     private static final String BASE_URL = "https://discord.com/api/v10";
+    private static final int MAX_BURST = 45;
+    private static final int REFILL_MS = 22; // ~45 req/s
+
     private final String token;
     private final HttpClient httpClient;
     private final DslJson<Object> json;
+    private final Semaphore limiter;
 
     public DiscordHttpClient(String token) {
         this.token = token;
@@ -26,6 +31,26 @@ public class DiscordHttpClient {
             .executor(Executors.newVirtualThreadPerTaskExecutor())
             .build();
         this.json = new DslJson<>(Settings.withRuntime().includeServiceLoader());
+        this.limiter = new Semaphore(MAX_BURST);
+        startRefillThread();
+    }
+
+    private void startRefillThread() {
+        Thread.ofVirtual().name("rate-limiter-refill").start(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(REFILL_MS);
+                    if (limiter.availablePermits() < MAX_BURST) {
+                        limiter.release();
+                    }
+                } catch (InterruptedException e) {
+                    // JVM shutting down or thread interrupted
+                    break;
+                } catch (Exception e) {
+                    Log.error("rate_limiter.refill_error", e);
+                }
+            }
+        });
     }
 
     public DiscordResult<Void> registerCommands(String applicationId, List<Command> commands) {
@@ -60,6 +85,7 @@ public class DiscordHttpClient {
 
     private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
+            limiter.acquire();
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 Log.error("http.request_failed",
