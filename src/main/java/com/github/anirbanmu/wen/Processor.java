@@ -10,24 +10,37 @@ import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.discord.json.Interaction.Data;
 import com.github.anirbanmu.wen.discord.json.Interaction.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
-import com.github.anirbanmu.wen.discord.json.InteractionResponse.Embed;
+import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
 public class Processor {
-    private final Map<String, Calendar> calendarConfigs;
-    private final Map<String, CalendarFeed> feeds;
+    private record CalendarContext(Calendar config, CalendarFeed feed, int color) {
+    }
+
+    private final Map<String, CalendarContext> contexts;
 
     public Processor(Map<String, Calendar> calendarConfigs, Map<String, CalendarFeed> feeds) {
-        this.calendarConfigs = calendarConfigs;
-        this.feeds = feeds;
+        this.contexts = new HashMap<>();
+
+        for (Map.Entry<String, Calendar> entry : calendarConfigs.entrySet()) {
+            String key = entry.getKey();
+            Calendar config = entry.getValue();
+            CalendarFeed feed = feeds.get(key);
+
+            if (feed != null) {
+                int color = generateColor(config.name());
+                contexts.put(key, new CalendarContext(config, feed, color));
+            }
+        }
     }
 
     public InteractionResponse process(Interaction interaction) {
         if (interaction.type() != Interaction.TYPE_APPLICATION_COMMAND || interaction.data() == null) {
-            return null; // or error response
+            return null;
         }
 
         Data data = interaction.data();
@@ -38,51 +51,39 @@ public class Processor {
         String calendarKey = getOptionValue(data.options(), "calendar");
         String filterKey = getOptionValue(data.options(), "filter");
 
-        Calendar calendarConfig = null;
-        CalendarFeed feed = null;
+        CalendarContext ctx = null;
 
         if (calendarKey == null) {
-            // check for fallback calendar
-            calendarConfig = calendarConfigs.values().stream()
-                .filter(Calendar::fallback)
+            ctx = contexts.values().stream()
+                .filter(c -> c.config().fallback())
                 .findFirst()
                 .orElse(null);
 
-            if (calendarConfig != null) {
-                // use first keyword to find feed
-                if (!calendarConfig.keywords().isEmpty()) {
-                    feed = feeds.get(calendarConfig.keywords().getFirst().toLowerCase());
-                }
-            }
-
-            if (calendarConfig == null || feed == null) {
-                return createMessageResponse("Error: Missing calendar argument.");
+            if (ctx == null) {
+                return InteractionResponse.message("Error: Missing calendar argument.");
             }
         } else {
-            calendarConfig = calendarConfigs.get(calendarKey.toLowerCase());
-            feed = feeds.get(calendarKey.toLowerCase());
+            ctx = contexts.get(calendarKey.toLowerCase());
         }
 
-        if (calendarConfig == null || feed == null) {
-            return createMessageResponse("Unknown calendar: " + calendarKey);
+        if (ctx == null) {
+            return InteractionResponse.message("Unknown calendar: " + calendarKey);
         }
 
         Predicate<CalendarEvent> predicate;
         if (filterKey != null && !filterKey.isBlank()) {
-            Filter namedFilter = calendarConfig.filters().get(filterKey.toLowerCase());
+            Filter namedFilter = ctx.config().filters().get(filterKey.toLowerCase());
             if (namedFilter != null) {
                 predicate = namedFilter.toPredicate();
             } else {
-                // fallback: substring search on summary
                 predicate = new Filter(filterKey, MatchField.SUMMARY).toPredicate();
             }
         } else {
-            // no filter, show all
             predicate = _ -> true;
         }
 
-        QueryResult result = feed.query(predicate, 3);
-        return formatResponse(calendarConfig, result);
+        QueryResult result = ctx.feed().query(predicate, 3);
+        return formatResponse(ctx, result);
     }
 
     private String getOptionValue(List<Option> options, String name) {
@@ -96,42 +97,72 @@ public class Processor {
             .orElse(null);
     }
 
-    private InteractionResponse createMessageResponse(String content) {
-        return new InteractionResponse(
-            InteractionResponse.TYPE_CHANNEL_MESSAGE_WITH_SOURCE,
-            new InteractionResponse.Data(content, null, null));
-    }
-
-    private InteractionResponse formatResponse(Calendar config, QueryResult result) {
-        List<Embed> embeds = new ArrayList<>();
-        StringBuilder description = new StringBuilder();
-
+    private InteractionResponse formatResponse(CalendarContext ctx, QueryResult result) {
         if (result.current() == null && result.upcoming().isEmpty()) {
-            description.append("No upcoming events found.");
-        } else {
-            if (result.current() != null) {
-                description.append("**Happening Now:** ").append(result.current().summary()).append("\n");
-            }
-
-            if (!result.upcoming().isEmpty()) {
-                description.append("**Upcoming:**\n");
-                for (CalendarEvent e : result.upcoming()) {
-                    long timestamp = e.start().getEpochSecond();
-                    // <t:TIMESTAMP:F> (full date time) or <t:TIMESTAMP:R> (relative)
-                    description
-                        .append(String.format("- **%s** <t:%d:R> (<t:%d:f>)\n", e.summary(), timestamp, timestamp));
-                }
-            }
+            return InteractionResponse.message("No upcoming events found for " + ctx.config().name());
         }
 
-        embeds.add(new InteractionResponse.Embed(
-            config.name(),
-            description.toString(),
-            0x00FF00, // greenish
-            null));
+        List<InteractionResponse.Field> fields = new ArrayList<>();
 
-        return new InteractionResponse(
-            InteractionResponse.TYPE_CHANNEL_MESSAGE_WITH_SOURCE,
-            new InteractionResponse.Data(null, embeds, null));
+        if (result.current() != null) {
+            fields.add(new InteractionResponse.Field(
+                "**Happening Now: " + result.current().summary() + "**",
+                formatLive(result.current()),
+                false));
+        }
+
+        for (CalendarEvent e : result.upcoming()) {
+            fields.add(new InteractionResponse.Field(
+                "**" + e.summary() + "**",
+                formatUpcoming(e),
+                false));
+        }
+
+        String timestamp = java.time.Instant.now().toString();
+        InteractionResponse.Footer footer = new InteractionResponse.Footer("wen?", null);
+
+        InteractionResponse.Embed embed = new InteractionResponse.Embed(
+            ctx.config().name(),
+            null,
+            ctx.color(),
+            fields,
+            timestamp,
+            footer);
+
+        return InteractionResponse.embeds(List.of(embed));
+    }
+
+    private static String formatLive(CalendarEvent event) {
+        StringBuilder sb = new StringBuilder();
+        long endEpoch = event.end().getEpochSecond();
+
+        sb.append("Ends <t:").append(endEpoch).append(":R>");
+        if (event.location() != null && !event.location().isBlank()) {
+            sb.append(" • ").append(event.location());
+        }
+        return sb.toString();
+    }
+
+    private static String formatUpcoming(CalendarEvent event) {
+        StringBuilder sb = new StringBuilder();
+        long startEpoch = event.start().getEpochSecond();
+
+        sb.append("<t:").append(startEpoch).append(":R>")
+            .append(" • ")
+            .append("<t:").append(startEpoch).append(":f>");
+
+        if (event.location() != null && !event.location().isBlank()) {
+            sb.append(" • ").append(event.location());
+        }
+        return sb.toString();
+    }
+
+    private static int generateColor(String seed) {
+        if (seed == null) {
+            return 0x00FF00;
+        }
+        int hash = seed.hashCode();
+        float hue = Math.abs(hash % 360) / 360f;
+        return Color.HSBtoRGB(hue, 0.8f, 0.9f) & 0xFFFFFF;
     }
 }

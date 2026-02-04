@@ -64,11 +64,9 @@ class ProcessorTest {
         InteractionResponse response = processor.process(interaction);
 
         assertNotNull(response);
-        // expecting embed with "No upcoming events"
-        assertNull(response.data().content());
-        assertEquals(1, response.data().embeds().size());
-        assertEquals(name, response.data().embeds().getFirst().title());
-        assertTrue(response.data().embeds().getFirst().description().startsWith("No upcoming events"));
+
+        assertEquals("No upcoming events found for " + name, response.data().content());
+        assertNull(response.data().embeds());
     }
 
     private Interaction createWenInteraction(String calendarVal, String filterVal) {
