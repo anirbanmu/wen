@@ -10,7 +10,6 @@ import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.discord.json.Interaction.Data;
 import com.github.anirbanmu.wen.discord.json.Interaction.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +80,7 @@ public class Processor {
             predicate = _ -> true;
         }
 
-        QueryResult result = ctx.feed().query(predicate, 3);
+        QueryResult result = ctx.feed().query(predicate, 2);
         return formatResponse(ctx, result);
     }
 
@@ -101,58 +100,94 @@ public class Processor {
             return InteractionResponse.message("No upcoming events found for " + ctx.config().name());
         }
 
-        List<InteractionResponse.Field> fields = new ArrayList<>();
+        List<String> keywords = ctx.config().keywords();
+        StringBuilder desc = new StringBuilder();
 
         if (result.current() != null) {
-            fields.add(new InteractionResponse.Field(
-                "**Happening Now: " + result.current().summary() + "**",
-                formatLive(result.current()),
-                false));
+            desc.append(formatLive(result.current(), keywords));
+            if (!result.upcoming().isEmpty()) {
+                desc.append("\n\n");
+            }
         }
 
-        for (CalendarEvent e : result.upcoming()) {
-            fields.add(new InteractionResponse.Field(
-                "**" + e.summary() + "**",
-                formatUpcoming(e),
-                false));
+        for (int i = 0; i < result.upcoming().size(); i++) {
+            if (i > 0) {
+                desc.append("\n\n");
+            }
+            desc.append(formatUpcoming(result.upcoming().get(i), keywords));
         }
 
         String timestamp = java.time.Instant.now().toString();
         InteractionResponse.Footer footer = new InteractionResponse.Footer("wen?", null);
+        InteractionResponse.Author author = new InteractionResponse.Author(ctx.config().name(), null);
 
         InteractionResponse.Embed embed = new InteractionResponse.Embed(
-            ctx.config().name(),
             null,
+            desc.toString(),
             ctx.color(),
-            fields,
+            null,
             timestamp,
-            footer);
+            footer,
+            author);
 
         return InteractionResponse.embeds(List.of(embed));
     }
 
-    private static String formatLive(CalendarEvent event) {
-        StringBuilder sb = new StringBuilder();
+    private static String formatLive(CalendarEvent event, List<String> keywords) {
         long endEpoch = event.end().getEpochSecond();
 
-        sb.append("Ends <t:").append(endEpoch).append(":R>");
+        StringBuilder sb = new StringBuilder();
+        sb.append("**").append(cleanSummary(event.summary(), keywords)).append("**");
+
         if (event.location() != null && !event.location().isBlank()) {
-            sb.append(" • ").append(event.location());
+            sb.append(" · ").append(event.location());
         }
+
+        sb.append("\nNow · ends <t:").append(endEpoch).append(":R>");
+
         return sb.toString();
     }
 
-    private static String formatUpcoming(CalendarEvent event) {
-        StringBuilder sb = new StringBuilder();
-        long startEpoch = event.start().getEpochSecond();
+    // some calendars like to prefix with the keywords (hacky but oh well)
+    private static String cleanSummary(String summary, List<String> keywords) {
+        if (summary == null || keywords == null) {
+            return summary;
+        }
+        String lower = summary.toLowerCase();
+        for (String keyword : keywords) {
+            String prefix = keyword.toLowerCase();
+            // check for "keyword: " or "keyword " at start
+            if (lower.startsWith(prefix + ": ")) {
+                return summary.substring(prefix.length() + 2).trim();
+            }
+            if (lower.startsWith(prefix + " ")) {
+                return summary.substring(prefix.length() + 1).trim();
+            }
+        }
+        return summary;
+    }
 
-        sb.append("<t:").append(startEpoch).append(":R>")
-            .append(" • ")
-            .append("<t:").append(startEpoch).append(":f>");
+    private static final long SECONDS_IN_WEEK = 7 * 24 * 60 * 60;
+
+    private static String formatUpcoming(CalendarEvent event, List<String> keywords) {
+        long startEpoch = event.start().getEpochSecond();
+        long secondsUntil = startEpoch - java.time.Instant.now().getEpochSecond();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("**").append(cleanSummary(event.summary(), keywords)).append("**");
 
         if (event.location() != null && !event.location().isBlank()) {
-            sb.append(" • ").append(event.location());
+            sb.append(" · ").append(event.location());
         }
+
+        sb.append("\n<t:").append(startEpoch).append(":R>");
+
+        if (secondsUntil > SECONDS_IN_WEEK) {
+            sb.append(" · <t:").append(startEpoch).append(":f>");
+        } else {
+            sb.append(" · <t:").append(startEpoch).append(":t>");
+        }
+
         return sb.toString();
     }
 

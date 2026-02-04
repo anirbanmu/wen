@@ -23,7 +23,7 @@ public record InteractionResponse(int type, @JsonAttribute(nullable = true) Data
     }
 
     @CompiledJson
-    public record Embed(@JsonAttribute(nullable = true) String title, @JsonAttribute(nullable = true) String description, @JsonAttribute(nullable = true) Integer color, @JsonAttribute(nullable = true) List<Field> fields, @JsonAttribute(nullable = true) String timestamp, @JsonAttribute(nullable = true) Footer footer) {
+    public record Embed(@JsonAttribute(nullable = true) String title, @JsonAttribute(nullable = true) String description, @JsonAttribute(nullable = true) Integer color, @JsonAttribute(nullable = true) List<Field> fields, @JsonAttribute(nullable = true) String timestamp, @JsonAttribute(nullable = true) Footer footer, @JsonAttribute(nullable = true) Author author) {
     }
 
     @CompiledJson
@@ -32,5 +32,9 @@ public record InteractionResponse(int type, @JsonAttribute(nullable = true) Data
 
     @CompiledJson
     public record Footer(String text, @JsonAttribute(nullable = true) String icon_url) {
+    }
+
+    @CompiledJson
+    public record Author(String name, @JsonAttribute(nullable = true) String icon_url) {
     }
 }
