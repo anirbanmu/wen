@@ -10,7 +10,6 @@ import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.discord.json.Interaction.Data;
 import com.github.anirbanmu.wen.discord.json.Interaction.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +31,7 @@ public class Processor {
             CalendarFeed feed = feeds.get(key);
 
             if (feed != null) {
-                int color = generateColor(config.name());
+                int color = generateColor(config.name(), config.url());
                 contexts.put(key, new CalendarContext(config, feed, color));
             }
         }
@@ -157,12 +156,22 @@ public class Processor {
         return sb.toString();
     }
 
-    private static int generateColor(String seed) {
-        if (seed == null) {
+    private static int generateColor(String name, String url) {
+        if (name == null || url == null) {
             return 0x00FF00;
         }
-        int hash = seed.hashCode();
-        float hue = Math.abs(hash % 360) / 360f;
-        return Color.HSBtoRGB(hue, 0.8f, 0.9f) & 0xFFFFFF;
+
+        int h = name.hashCode() ^ url.hashCode();
+
+        int x = (h >>> 4) & 0xFF; // variable component
+
+        return switch (Math.abs(h % 6)) {
+            case 0 -> (0xFF << 16) | (x << 8) | 0x00;
+            case 1 -> (0xFF << 16) | 0x00 | x;
+            case 2 -> (x << 16) | (0xFF << 8) | 0x00;
+            case 3 -> 0x00 | (0xFF << 8) | x;
+            case 4 -> 0x00 | (x << 8) | 0xFF;
+            default -> (x << 16) | 0x00 | 0xFF;
+        };
     }
 }
