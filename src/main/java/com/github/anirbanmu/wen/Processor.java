@@ -7,92 +7,258 @@ import com.github.anirbanmu.wen.config.Calendar;
 import com.github.anirbanmu.wen.config.Filter;
 import com.github.anirbanmu.wen.config.MatchField;
 import com.github.anirbanmu.wen.discord.json.Interaction;
-import com.github.anirbanmu.wen.discord.json.Interaction.Data;
 import com.github.anirbanmu.wen.discord.json.Interaction.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class Processor {
     private record CalendarContext(Calendar config, CalendarFeed feed, int color) {
     }
 
-    private final Map<String, CalendarContext> contexts;
+    private record ParsedQuery(CalendarContext calendar, Predicate<CalendarEvent> filter, String error) {
+        static ParsedQuery success(CalendarContext cal, Predicate<CalendarEvent> filter) {
+            return new ParsedQuery(cal, filter, null);
+        }
 
-    public Processor(Map<String, Calendar> calendarConfigs, Map<String, CalendarFeed> feeds) {
-        this.contexts = new HashMap<>();
+        static ParsedQuery error(String message) {
+            return new ParsedQuery(null, null, message);
+        }
 
-        for (Map.Entry<String, Calendar> entry : calendarConfigs.entrySet()) {
-            String key = entry.getKey();
-            Calendar config = entry.getValue();
-            CalendarFeed feed = feeds.get(key);
-
-            if (feed != null) {
-                int color = generateColor(config.name(), config.url());
-                contexts.put(key, new CalendarContext(config, feed, color));
-            }
+        boolean isHelp() {
+            return calendar == null && "help".equals(error);
         }
     }
 
+    private final Map<String, CalendarContext> contexts;
+    private final CalendarContext fallback;
+    private final List<String> allSuggestions; // sorted: shortest first, then alpha
+    private final InteractionResponse helpResponse;
+
+    public Processor(Map<String, Calendar> calendarConfigs, Map<String, CalendarFeed> feeds) {
+        this.contexts = new HashMap<>();
+        CalendarContext foundFallback = null;
+        Set<String> suggestions = new HashSet<>();
+
+        for (Map.Entry<String, Calendar> entry : calendarConfigs.entrySet()) {
+            Calendar config = entry.getValue();
+            CalendarFeed feed = feeds.get(entry.getKey());
+
+            if (feed != null) {
+                int color = generateColor(config.name(), config.url());
+                CalendarContext ctx = new CalendarContext(config, feed, color);
+
+                for (String keyword : config.keywords()) {
+                    String key = keyword.toLowerCase();
+                    contexts.put(key, ctx);
+                    suggestions.add(key);
+                    // keyword + filter combos
+                    for (String filterKey : config.filters().keySet()) {
+                        suggestions.add(key + " " + filterKey);
+                    }
+                }
+
+                if (config.name() != null) {
+                    String nameKey = config.name().toLowerCase();
+                    contexts.put(nameKey, ctx);
+                    suggestions.add(nameKey);
+                    // name + filter combos
+                    for (String filterKey : config.filters().keySet()) {
+                        suggestions.add(nameKey + " " + filterKey);
+                    }
+                }
+
+                if (config.fallback() && foundFallback == null) {
+                    foundFallback = ctx;
+                }
+            }
+        }
+
+        this.fallback = foundFallback;
+
+        List<String> sorted = new ArrayList<>(suggestions);
+        sorted.sort((a, b) -> {
+            if (a.length() != b.length()) {
+                return a.length() - b.length();
+            }
+            return a.compareTo(b);
+        });
+        this.allSuggestions = List.copyOf(sorted);
+        this.helpResponse = buildHelpResponse(contexts.values());
+    }
+
+    private static InteractionResponse buildHelpResponse(Collection<CalendarContext> contexts) {
+        // dedupe calendars (same calendar indexed by multiple keywords)
+        Set<Calendar> seen = new HashSet<>();
+        List<CalendarContext> unique = new ArrayList<>();
+        for (CalendarContext ctx : contexts) {
+            if (seen.add(ctx.config())) {
+                unique.add(ctx);
+            }
+        }
+
+        StringBuilder desc = new StringBuilder();
+        desc.append("**Available calendars:**\n\n");
+
+        for (CalendarContext ctx : unique) {
+            Calendar config = ctx.config();
+            desc.append("**").append(config.name()).append("**");
+            if (!config.keywords().isEmpty()) {
+                desc.append(" · `").append(String.join("`, `", config.keywords())).append("`");
+            }
+            desc.append("\n");
+
+            if (!config.filters().isEmpty()) {
+                desc.append("filters: `").append(String.join("`, `", config.filters().keySet())).append("`\n");
+            }
+            desc.append("\n");
+        }
+
+        desc.append("**Usage:** `/wen <calendar> [filter]`\n");
+        desc.append("Example: `/wen f1 race`");
+
+        InteractionResponse.Embed embed = new InteractionResponse.Embed(
+            "wen help",
+            desc.toString(),
+            0x5865F2,
+            null,
+            null,
+            null,
+            null);
+
+        return InteractionResponse.embeds(List.of(embed));
+    }
+
     public InteractionResponse process(Interaction interaction) {
-        if (interaction.type() != Interaction.TYPE_APPLICATION_COMMAND || interaction.data() == null) {
+        if (interaction.data() == null || !"wen".equals(interaction.data().name())) {
             return null;
         }
 
-        Data data = interaction.data();
-        if (!"wen".equals(data.name())) {
-            return null;
+        return switch (interaction.type()) {
+            case Interaction.TYPE_APPLICATION_COMMAND -> processCommand(interaction);
+            case Interaction.TYPE_APPLICATION_COMMAND_AUTOCOMPLETE -> processAutocomplete(interaction);
+            default -> null;
+        };
+    }
+
+    private InteractionResponse processCommand(Interaction interaction) {
+        String query = getOptionValue(interaction.data().options(), "query");
+
+        ParsedQuery parsed = parseQuery(query);
+
+        if (parsed.isHelp()) {
+            return helpResponse;
         }
 
-        String calendarKey = getOptionValue(data.options(), "calendar");
-        String filterKey = getOptionValue(data.options(), "filter");
-
-        CalendarContext ctx = null;
-
-        if (calendarKey == null) {
-            ctx = contexts.values().stream()
-                .filter(c -> c.config().fallback())
-                .findFirst()
-                .orElse(null);
-
-            if (ctx == null) {
-                return InteractionResponse.message("Error: Missing calendar argument.");
-            }
-        } else {
-            ctx = contexts.get(calendarKey.toLowerCase());
+        if (parsed.error() != null) {
+            return InteractionResponse.message(parsed.error());
         }
 
-        if (ctx == null) {
-            return InteractionResponse.message("Unknown calendar: " + calendarKey);
-        }
-
-        Predicate<CalendarEvent> predicate;
-        if (filterKey != null && !filterKey.isBlank()) {
-            Filter namedFilter = ctx.config().filters().get(filterKey.toLowerCase());
-            if (namedFilter != null) {
-                predicate = namedFilter.toPredicate();
-            } else {
-                predicate = new Filter(filterKey, MatchField.SUMMARY).toPredicate();
-            }
-        } else {
-            predicate = _ -> true;
-        }
-
-        QueryResult result = ctx.feed().query(predicate, 2);
-        return formatResponse(ctx, result);
+        QueryResult result = parsed.calendar().feed().query(parsed.filter(), 2);
+        return formatResponse(parsed.calendar(), result);
     }
 
     private String getOptionValue(List<Option> options, String name) {
         if (options == null) {
             return null;
         }
-        return options.stream()
-            .filter(o -> o.name().equals(name))
-            .findFirst()
-            .map(Option::value)
-            .orElse(null);
+        for (Option o : options) {
+            if (o.name().equals(name)) {
+                return o.value();
+            }
+        }
+        return null;
+    }
+
+    private ParsedQuery parseQuery(String query) {
+        // empty -> fallback or help
+        if (query == null || query.isBlank()) {
+            return fallback != null ? ParsedQuery.success(fallback, _ -> true) : ParsedQuery.error("help");
+        }
+
+        String q = query.strip().toLowerCase();
+
+        if ("help".equals(q)) {
+            return ParsedQuery.error("help");
+        }
+
+        // exact match (calendar keyword or name)
+        CalendarContext ctx = contexts.get(q);
+        if (ctx != null) {
+            return ParsedQuery.success(ctx, _ -> true);
+        }
+
+        // prefix match (calendar + filter)
+        for (String key : contexts.keySet()) {
+            if (q.startsWith(key + " ")) {
+                ctx = contexts.get(key);
+                String filterPart = q.substring(key.length() + 1);
+                return ParsedQuery.success(ctx, resolveFilter(ctx, filterPart));
+            }
+        }
+
+        return ParsedQuery.error("Unknown calendar: " + query.strip());
+    }
+
+    private Predicate<CalendarEvent> resolveFilter(CalendarContext ctx, String filterText) {
+        if (filterText == null || filterText.isBlank()) {
+            return _ -> true;
+        }
+        Filter namedFilter = ctx.config().filters().get(filterText.toLowerCase());
+        if (namedFilter != null) {
+            return namedFilter.toPredicate();
+        }
+        return new Filter(filterText, MatchField.SUMMARY).toPredicate();
+    }
+
+    private InteractionResponse processAutocomplete(Interaction interaction) {
+        String query = getFocusedOptionValue(interaction.data().options());
+        String q = query == null ? "" : query.strip().toLowerCase();
+
+        List<InteractionResponse.Choice> choices = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+
+        // pass 1: prefix matches
+        for (String s : allSuggestions) {
+            if (s.startsWith(q) && seen.add(s)) {
+                choices.add(new InteractionResponse.Choice(s, s));
+                if (choices.size() >= 25) {
+                    break;
+                }
+            }
+        }
+
+        // pass 2: substring matches
+        if (choices.size() < 25) {
+            for (String s : allSuggestions) {
+                if (s.contains(q) && seen.add(s)) {
+                    choices.add(new InteractionResponse.Choice(s, s));
+                    if (choices.size() >= 25) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        return InteractionResponse.autocomplete(choices);
+    }
+
+    private String getFocusedOptionValue(List<Option> options) {
+        if (options == null) {
+            return null;
+        }
+        for (Option o : options) {
+            if (Boolean.TRUE.equals(o.focused())) {
+                return o.value();
+            }
+        }
+        return null;
     }
 
     private InteractionResponse formatResponse(CalendarContext ctx, QueryResult result) {
@@ -148,7 +314,7 @@ public class Processor {
         return sb.toString();
     }
 
-    // some calendars like to prefix with the keywords (hacky but oh well)
+    // strip keyword prefix from summary (some calendars prefix events with their name)
     private static String cleanSummary(String summary, List<String> keywords) {
         if (summary == null || keywords == null) {
             return summary;
@@ -156,7 +322,6 @@ public class Processor {
         String lower = summary.toLowerCase();
         for (String keyword : keywords) {
             String prefix = keyword.toLowerCase();
-            // check for "keyword: " or "keyword " at start
             if (lower.startsWith(prefix + ": ")) {
                 return summary.substring(prefix.length() + 2).trim();
             }
@@ -197,8 +362,7 @@ public class Processor {
         }
 
         int h = name.hashCode() ^ url.hashCode();
-
-        int x = (h >>> 4) & 0xFF; // variable component
+        int x = (h >>> 4) & 0xFF;
 
         return switch (Math.abs(h % 6)) {
             case 0 -> (0xFF << 16) | (x << 8) | 0x00;

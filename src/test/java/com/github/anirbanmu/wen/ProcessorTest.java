@@ -22,7 +22,7 @@ class ProcessorTest {
     @Test
     void testUnknownCalendar() {
         Processor processor = new Processor(Collections.emptyMap(), Collections.emptyMap());
-        Interaction interaction = createWenInteraction("test", null);
+        Interaction interaction = createWenInteraction("unknown");
 
         InteractionResponse response = processor.process(interaction);
 
@@ -32,17 +32,15 @@ class ProcessorTest {
     }
 
     @Test
-    void testMissingCalendarArg() {
+    void testEmptyQueryShowsHelp() {
         Processor processor = new Processor(Collections.emptyMap(), Collections.emptyMap());
-        Interaction interaction = new Interaction(
-            "id", "appId", Interaction.TYPE_APPLICATION_COMMAND,
-            new Data("id", "wen", 1, Collections.emptyList()),
-            "guild", "channel", "token");
+        Interaction interaction = createWenInteraction(null);
 
         InteractionResponse response = processor.process(interaction);
 
         assertNotNull(response);
-        assertTrue(response.data().content().startsWith("Error:"));
+        assertNotNull(response.data().embeds());
+        assertNull(response.data().content());
     }
 
     @Test
@@ -60,7 +58,7 @@ class ProcessorTest {
 
         Processor processor = new Processor(configs, feeds);
 
-        Interaction interaction = createWenInteraction("test", null);
+        Interaction interaction = createWenInteraction("test");
         InteractionResponse response = processor.process(interaction);
 
         assertNotNull(response);
@@ -69,13 +67,10 @@ class ProcessorTest {
         assertNull(response.data().embeds());
     }
 
-    private Interaction createWenInteraction(String calendarVal, String filterVal) {
+    private Interaction createWenInteraction(String query) {
         List<Option> options = new java.util.ArrayList<>();
-        if (calendarVal != null) {
-            options.add(new Option("calendar", Option.TYPE_STRING, calendarVal, null));
-        }
-        if (filterVal != null) {
-            options.add(new Option("filter", Option.TYPE_STRING, filterVal, null));
+        if (query != null) {
+            options.add(new Option("query", Option.TYPE_STRING, query, null));
         }
 
         return new Interaction(
