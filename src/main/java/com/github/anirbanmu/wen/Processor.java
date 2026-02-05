@@ -5,7 +5,6 @@ import com.github.anirbanmu.wen.calendar.CalendarFeed;
 import com.github.anirbanmu.wen.calendar.QueryResult;
 import com.github.anirbanmu.wen.config.Calendar;
 import com.github.anirbanmu.wen.config.Filter;
-import com.github.anirbanmu.wen.config.MatchField;
 import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.discord.json.Interaction.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
@@ -214,7 +213,11 @@ public class Processor {
         if (namedFilter != null) {
             return namedFilter.toPredicate();
         }
-        return new Filter(filterText, MatchField.SUMMARY).toPredicate();
+        // fallback: free-text search across summary, location, description
+        String q = filterText.toLowerCase();
+        return event -> (event.summary() != null && event.summary().toLowerCase().contains(q)) ||
+            (event.location() != null && event.location().toLowerCase().contains(q)) ||
+            (event.description() != null && event.description().toLowerCase().contains(q));
     }
 
     private InteractionResponse processAutocomplete(Interaction interaction) {
