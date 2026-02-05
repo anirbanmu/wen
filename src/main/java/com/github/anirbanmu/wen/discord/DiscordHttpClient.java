@@ -86,11 +86,9 @@ public class DiscordHttpClient {
     private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
             limiter.acquire();
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<Void> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.discarding());
             if (response.statusCode() >= 400) {
-                Log.error("http.request_failed",
-                    "status", response.statusCode(),
-                    "body", response.body());
+                Log.error("http.request_failed", "status", response.statusCode());
                 return new DiscordResult.Failure<>("Discord API error", response.statusCode());
             }
             return new DiscordResult.Success<>(null);
