@@ -10,6 +10,7 @@ public record Interaction(String id, @JsonAttribute(name = "application_id") Str
 
     // interaction types
     public static final int TYPE_APPLICATION_COMMAND = 2;
+    public static final int TYPE_APPLICATION_COMMAND_AUTOCOMPLETE = 4;
 
     // data field within an interaction (for slash commands)
     @CompiledJson
@@ -21,7 +22,7 @@ public record Interaction(String id, @JsonAttribute(name = "application_id") Str
 
     // individual command option (e.g., source="f1", filter="r")
     @CompiledJson
-    public record Option(String name, int type, @JsonAttribute(nullable = true) String value) {
+    public record Option(String name, int type, @JsonAttribute(nullable = true) String value, @JsonAttribute(nullable = true) Boolean focused) {
 
         // option types we care about
         public static final int TYPE_STRING = 3;

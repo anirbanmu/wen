@@ -72,10 +72,10 @@ class ProcessorTest {
     private Interaction createWenInteraction(String calendarVal, String filterVal) {
         List<Option> options = new java.util.ArrayList<>();
         if (calendarVal != null) {
-            options.add(new Option("calendar", Option.TYPE_STRING, calendarVal));
+            options.add(new Option("calendar", Option.TYPE_STRING, calendarVal, null));
         }
         if (filterVal != null) {
-            options.add(new Option("filter", Option.TYPE_STRING, filterVal));
+            options.add(new Option("filter", Option.TYPE_STRING, filterVal, null));
         }
 
         return new Interaction(

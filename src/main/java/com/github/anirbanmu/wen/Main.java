@@ -137,13 +137,15 @@ public class Main {
             "Calendar to query (e.g. Formula 1)",
             Command.TYPE_STRING,
             true,
-            allChoices);
+            allChoices,
+            null);
 
         Option filterOption = new Option(
             "filter",
             "Filter events (e.g. race, gp, sprint, practice)",
             Command.TYPE_STRING,
             false,
+            null,
             null);
 
         Command wenCommand = new Command(

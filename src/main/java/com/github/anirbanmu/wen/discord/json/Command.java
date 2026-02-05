@@ -13,7 +13,7 @@ public record Command(String name, String description, @JsonAttribute(nullable =
     public static final int TYPE_BOOLEAN = 5;
 
     @CompiledJson
-    public record Option(String name, String description, int type, boolean required, @JsonAttribute(nullable = true) List<Choice> choices) {
+    public record Option(String name, String description, int type, boolean required, @JsonAttribute(nullable = true) List<Choice> choices, @JsonAttribute(nullable = true) Boolean autocomplete) {
     }
 
     @CompiledJson
