@@ -1,13 +1,12 @@
 package com.github.anirbanmu.wen.discord;
 
-import com.dslplatform.json.DslJson;
-import com.dslplatform.json.runtime.Settings;
 import com.github.anirbanmu.wen.discord.json.GatewayEvent;
 import com.github.anirbanmu.wen.discord.json.GatewayEventParser;
 import com.github.anirbanmu.wen.discord.json.GatewayEventParser.ParseResult;
 import com.github.anirbanmu.wen.discord.json.Identify;
 import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.log.Log;
+import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -32,7 +31,6 @@ public class Gateway {
 
     private final String token;
     private final HttpClient httpClient;
-    private final DslJson<Object> json;
     private final GatewayEventParser parser;
     private final Consumer<Interaction> interactionHandler;
     private final ExecutorService handlerExecutor;
@@ -55,8 +53,7 @@ public class Gateway {
         this.httpClient = HttpClient.newBuilder()
             .executor(Executors.newVirtualThreadPerTaskExecutor())
             .build();
-        this.json = new DslJson<>(Settings.withRuntime().includeServiceLoader());
-        this.parser = new GatewayEventParser(json);
+        this.parser = new GatewayEventParser();
         this.handlerExecutor = Executors.newVirtualThreadPerTaskExecutor();
     }
 
@@ -325,7 +322,7 @@ public class Gateway {
             }
             try {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
-                json.serialize(data, out);
+                Json.DSL.serialize(data, out);
                 String payload = "{\"op\":" + op + ",\"d\":" + out.toString(StandardCharsets.UTF_8) + "}";
                 socket.sendText(payload, true);
                 return true;

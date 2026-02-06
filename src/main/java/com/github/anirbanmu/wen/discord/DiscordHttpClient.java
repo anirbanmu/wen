@@ -1,10 +1,9 @@
 package com.github.anirbanmu.wen.discord;
 
-import com.dslplatform.json.DslJson;
-import com.dslplatform.json.runtime.Settings;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
 import com.github.anirbanmu.wen.log.Log;
+import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
@@ -22,7 +21,6 @@ public class DiscordHttpClient {
 
     private final String token;
     private final HttpClient httpClient;
-    private final DslJson<Object> json;
     private final Semaphore limiter;
 
     public DiscordHttpClient(String token) {
@@ -30,7 +28,6 @@ public class DiscordHttpClient {
         this.httpClient = HttpClient.newBuilder()
             .executor(Executors.newVirtualThreadPerTaskExecutor())
             .build();
-        this.json = new DslJson<>(Settings.withRuntime().includeServiceLoader());
         this.limiter = new Semaphore(MAX_BURST);
         startRefillThread();
     }
@@ -76,7 +73,7 @@ public class DiscordHttpClient {
     private HttpRequest.BodyPublisher bodyPublisher(Object data) {
         try {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
-            json.serialize(data, os);
+            Json.DSL.serialize(data, os);
             return HttpRequest.BodyPublishers.ofByteArray(os.toByteArray());
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize request body", e);

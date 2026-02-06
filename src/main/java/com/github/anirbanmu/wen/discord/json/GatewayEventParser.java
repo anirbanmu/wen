@@ -1,8 +1,8 @@
 package com.github.anirbanmu.wen.discord.json;
 
 import com.dslplatform.json.CompiledJson;
-import com.dslplatform.json.DslJson;
 import com.dslplatform.json.JsonAttribute;
+import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
@@ -15,10 +15,7 @@ public final class GatewayEventParser {
     private static final int OP_HELLO = 10;
     private static final int OP_HEARTBEAT_ACK = 11;
 
-    private final DslJson<Object> json;
-
-    public GatewayEventParser(DslJson<Object> json) {
-        this.json = json;
+    public GatewayEventParser() {
     }
 
     public record ParseResult(GatewayEvent event, Integer sequence) {
@@ -29,13 +26,13 @@ public final class GatewayEventParser {
         ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 
         // first pass: get op, s, t
-        Envelope envelope = json.deserialize(Envelope.class, bais);
+        Envelope envelope = Json.DSL.deserialize(Envelope.class, bais);
 
         // second pass: reuse stream for typed deserialization
         GatewayEvent event = switch (envelope.op()) {
             case OP_HELLO -> {
                 bais.reset();
-                HelloMsg msg = json.deserialize(HelloMsg.class, bais);
+                HelloMsg msg = Json.DSL.deserialize(HelloMsg.class, bais);
                 yield new GatewayEvent.Hello(msg.d().heartbeatInterval());
             }
             case OP_HEARTBEAT -> new GatewayEvent.HeartbeatRequest();
@@ -43,7 +40,7 @@ public final class GatewayEventParser {
             case OP_RECONNECT -> new GatewayEvent.Reconnect();
             case OP_INVALID_SESSION -> {
                 bais.reset();
-                InvalidSessionMsg msg = json.deserialize(InvalidSessionMsg.class, bais);
+                InvalidSessionMsg msg = Json.DSL.deserialize(InvalidSessionMsg.class, bais);
                 yield new GatewayEvent.InvalidSession(msg.d());
             }
             case OP_DISPATCH -> {
@@ -59,11 +56,11 @@ public final class GatewayEventParser {
     private GatewayEvent parseDispatch(String eventType, ByteArrayInputStream bais) throws Exception {
         return switch (eventType) {
             case "READY" -> {
-                ReadyMsg msg = json.deserialize(ReadyMsg.class, bais);
+                ReadyMsg msg = Json.DSL.deserialize(ReadyMsg.class, bais);
                 yield new GatewayEvent.Ready(msg.d().sessionId(), msg.d().resumeGatewayUrl());
             }
             case "INTERACTION_CREATE" -> {
-                InteractionMsg msg = json.deserialize(InteractionMsg.class, bais);
+                InteractionMsg msg = Json.DSL.deserialize(InteractionMsg.class, bais);
                 yield new GatewayEvent.InteractionCreate(msg.d());
             }
             default -> null;

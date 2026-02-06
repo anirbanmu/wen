@@ -2,17 +2,15 @@ package com.github.anirbanmu.wen.discord.json;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.dslplatform.json.DslJson;
-import com.dslplatform.json.runtime.Settings;
 import com.github.anirbanmu.wen.discord.json.GatewayEventParser.ParseResult;
+import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class GatewayEventParserTest {
 
-    private final DslJson<Object> dsl = new DslJson<>(Settings.withRuntime().includeServiceLoader());
-    private final GatewayEventParser parser = new GatewayEventParser(dsl);
+    private final GatewayEventParser parser = new GatewayEventParser();
 
     @Test
     void parseHello() throws Exception {
@@ -142,7 +140,7 @@ class GatewayEventParserTest {
         Identify identify = Identify.create("test-token", 513);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        dsl.serialize(identify, out);
+        Json.DSL.serialize(identify, out);
         String json = out.toString(StandardCharsets.UTF_8);
 
         assertTrue(json.contains("\"token\":\"test-token\""));
