@@ -26,38 +26,44 @@ public final class GatewayEventParser {
 
     public ParseResult parse(String raw) throws Exception {
         byte[] bytes = raw.getBytes(StandardCharsets.UTF_8);
+        ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
 
         // first pass: get op, s, t
-        Envelope envelope = json.deserialize(Envelope.class, new ByteArrayInputStream(bytes));
+        Envelope envelope = json.deserialize(Envelope.class, bais);
 
-        // second pass: deserialize based on op/t
+        // second pass: reuse stream for typed deserialization
         GatewayEvent event = switch (envelope.op()) {
             case OP_HELLO -> {
-                HelloMsg msg = json.deserialize(HelloMsg.class, new ByteArrayInputStream(bytes));
+                bais.reset();
+                HelloMsg msg = json.deserialize(HelloMsg.class, bais);
                 yield new GatewayEvent.Hello(msg.d().heartbeatInterval());
             }
             case OP_HEARTBEAT -> new GatewayEvent.HeartbeatRequest();
             case OP_HEARTBEAT_ACK -> new GatewayEvent.HeartbeatAck();
             case OP_RECONNECT -> new GatewayEvent.Reconnect();
             case OP_INVALID_SESSION -> {
-                InvalidSessionMsg msg = json.deserialize(InvalidSessionMsg.class, new ByteArrayInputStream(bytes));
+                bais.reset();
+                InvalidSessionMsg msg = json.deserialize(InvalidSessionMsg.class, bais);
                 yield new GatewayEvent.InvalidSession(msg.d());
             }
-            case OP_DISPATCH -> parseDispatch(envelope.t(), bytes);
+            case OP_DISPATCH -> {
+                bais.reset();
+                yield parseDispatch(envelope.t(), bais);
+            }
             default -> null;
         };
 
         return new ParseResult(event, envelope.s());
     }
 
-    private GatewayEvent parseDispatch(String eventType, byte[] bytes) throws Exception {
+    private GatewayEvent parseDispatch(String eventType, ByteArrayInputStream bais) throws Exception {
         return switch (eventType) {
             case "READY" -> {
-                ReadyMsg msg = json.deserialize(ReadyMsg.class, new ByteArrayInputStream(bytes));
+                ReadyMsg msg = json.deserialize(ReadyMsg.class, bais);
                 yield new GatewayEvent.Ready(msg.d().sessionId(), msg.d().resumeGatewayUrl());
             }
             case "INTERACTION_CREATE" -> {
-                InteractionMsg msg = json.deserialize(InteractionMsg.class, new ByteArrayInputStream(bytes));
+                InteractionMsg msg = json.deserialize(InteractionMsg.class, bais);
                 yield new GatewayEvent.InteractionCreate(msg.d());
             }
             default -> null;
