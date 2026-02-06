@@ -1,5 +1,6 @@
 package com.github.anirbanmu.wen.log;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -90,11 +91,12 @@ public final class Log {
     }
 
     private static void write(List<String> batch) throws IOException {
-        StringBuilder chunk = new StringBuilder(batch.size() * 128);
+        ByteArrayOutputStream buf = new ByteArrayOutputStream(batch.size() * 128);
         for (String msg : batch) {
-            chunk.append(msg).append('\n');
+            buf.write(msg.getBytes(StandardCharsets.UTF_8));
+            buf.write('\n');
         }
-        OUT.write(chunk.toString().getBytes(StandardCharsets.UTF_8));
+        OUT.write(buf.toByteArray());
         batch.clear();
     }
 
