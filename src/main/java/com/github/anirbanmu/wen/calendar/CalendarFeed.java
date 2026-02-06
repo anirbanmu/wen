@@ -5,11 +5,14 @@ import biweekly.ICalendar;
 import biweekly.component.VEvent;
 import biweekly.util.com.google.ical.compat.javautil.DateIterator;
 import com.github.anirbanmu.wen.log.Log;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -112,23 +115,36 @@ public class CalendarFeed {
         REFRESH_LIMIT.acquire();
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
             if (response.statusCode() != 200) {
                 Log.error("calendar_fetch_failed", "url", url, "status", response.statusCode());
                 return;
             }
 
-            List<CalendarEvent> events = parse(response.body(), filter);
-            this.events = events;
-            Log.info("calendar_refreshed", "url", url, "count", events.size());
+            try (InputStream body = response.body()) {
+                List<CalendarEvent> events = parse(body, filter);
+                this.events = events;
+                Log.info("calendar_refreshed", "url", url, "count", events.size());
+            }
         } finally {
             REFRESH_LIMIT.release();
         }
     }
 
+    // convenience overload for tests
     static List<CalendarEvent> parse(String body, Predicate<CalendarEvent> filter) {
-        ICalendar ical = Biweekly.parse(body).first();
+        return parse(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)), filter);
+    }
+
+    static List<CalendarEvent> parse(InputStream body, Predicate<CalendarEvent> filter) {
+        ICalendar ical;
+        try {
+            ical = Biweekly.parse(body).first();
+        } catch (IOException e) {
+            Log.error("calendar_parse_error", e);
+            return Collections.emptyList();
+        }
         if (ical == null) {
             return Collections.emptyList();
         }
