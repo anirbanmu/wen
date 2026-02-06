@@ -215,9 +215,9 @@ public class Processor {
         }
         // fallback: free-text search across summary, location, description
         String q = filterText.toLowerCase();
-        return event -> (event.summary() != null && event.summary().toLowerCase().contains(q)) ||
-            (event.location() != null && event.location().toLowerCase().contains(q)) ||
-            (event.description() != null && event.description().toLowerCase().contains(q));
+        return event -> (event.lowerSummary() != null && event.lowerSummary().contains(q)) ||
+            (event.lowerLocation() != null && event.lowerLocation().contains(q)) ||
+            (event.lowerDescription() != null && event.lowerDescription().contains(q));
     }
 
     private InteractionResponse processAutocomplete(Interaction interaction) {
@@ -306,7 +306,7 @@ public class Processor {
         long endEpoch = event.end().getEpochSecond();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("**").append(cleanSummary(event.summary(), keywords)).append("**");
+        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), keywords)).append("**");
 
         if (event.location() != null && !event.location().isBlank()) {
             sb.append(" · ").append(event.location());
@@ -318,18 +318,17 @@ public class Processor {
     }
 
     // strip keyword prefix from summary (some calendars prefix events with their name)
-    private static String cleanSummary(String summary, List<String> keywords) {
+    private static String cleanSummary(String summary, String lowerSummary, List<String> keywords) {
         if (summary == null || keywords == null) {
             return summary;
         }
-        String lower = summary.toLowerCase();
         for (String keyword : keywords) {
-            String prefix = keyword.toLowerCase();
-            if (lower.startsWith(prefix + ": ")) {
-                return summary.substring(prefix.length() + 2).trim();
+            // keywords are already lowercase from config
+            if (lowerSummary.startsWith(keyword + ": ")) {
+                return summary.substring(keyword.length() + 2).trim();
             }
-            if (lower.startsWith(prefix + " ")) {
-                return summary.substring(prefix.length() + 1).trim();
+            if (lowerSummary.startsWith(keyword + " ")) {
+                return summary.substring(keyword.length() + 1).trim();
             }
         }
         return summary;
@@ -342,7 +341,7 @@ public class Processor {
         long secondsUntil = startEpoch - java.time.Instant.now().getEpochSecond();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("**").append(cleanSummary(event.summary(), keywords)).append("**");
+        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), keywords)).append("**");
 
         if (event.location() != null && !event.location().isBlank()) {
             sb.append(" · ").append(event.location());

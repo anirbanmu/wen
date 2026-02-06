@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class ConfigFilterTest {
 
-    private static final CalendarEvent F1_RACE = new CalendarEvent(
+    private static final CalendarEvent F1_RACE = CalendarEvent.create(
         "f1 grand Prix",
         Instant.now(),
         Instant.now().plusSeconds(3600),
@@ -51,7 +51,7 @@ class ConfigFilterTest {
 
     @Test
     void testNullHandling() {
-        CalendarEvent nullEvent = new CalendarEvent(null, Instant.now(), Instant.now(), null, null,
+        CalendarEvent nullEvent = CalendarEvent.create(null, Instant.now(), Instant.now(), null, null,
             Collections.emptyList());
         Filter filter = new Filter("anything", MatchField.SUMMARY);
         assertFalse(filter.toPredicate().test(nullEvent));

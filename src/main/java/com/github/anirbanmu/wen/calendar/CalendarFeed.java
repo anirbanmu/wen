@@ -224,6 +224,6 @@ public class CalendarFeed {
             .flatMap(c -> c.getValues().stream())
             .toList();
 
-        return new CalendarEvent(summary, start, end, location, description, categories);
+        return CalendarEvent.create(summary, start, end, location, description, categories);
     }
 }
