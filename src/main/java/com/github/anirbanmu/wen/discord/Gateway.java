@@ -146,6 +146,11 @@ public class Gateway {
         return readyFuture;
     }
 
+    public boolean isHealthy() {
+        Session s = currentSession;
+        return running && s != null && !s.closed.get();
+    }
+
     // per-connection state and websocket handler
     private abstract class Session implements WebSocket.Listener {
         private volatile WebSocket socket;

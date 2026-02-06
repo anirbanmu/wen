@@ -40,6 +40,8 @@ COPY docker/entrypoint.sh /app/entrypoint.sh
 ENV JAVA_HOME=/opt/jre
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
+EXPOSE 8080
+
 WORKDIR /app
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]

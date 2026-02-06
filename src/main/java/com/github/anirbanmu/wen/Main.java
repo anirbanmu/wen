@@ -11,11 +11,18 @@ import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.Command.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
 import com.github.anirbanmu.wen.log.Log;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 
 public class Main {
     public static void main(String[] args) {
@@ -97,9 +104,15 @@ public class Main {
             }
         });
 
+        int healthPort = Integer.parseInt(System.getenv().getOrDefault("HEALTH_PORT", "8080"));
+        try {
+            startHealthCheck(healthPort, gateway::isHealthy);
+        } catch (Exception e) {
+            Log.error("startup.health_server_failed", e);
+            System.exit(1);
+        }
+
         gateway.connect();
-        // Gateway.connect is async, but logs "gateway.connecting" inside.
-        // We log started here.
 
         // keep main thread alive
         try {
@@ -138,5 +151,21 @@ public class Main {
                 }
             }
         }
+    }
+
+    private static void startHealthCheck(int port, BooleanSupplier healthy) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        server.createContext("/health", exchange -> {
+            boolean ok = healthy.getAsBoolean();
+            int status = ok ? 200 : 503;
+            byte[] body = (ok ? "ok" : "unhealthy").getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(status, body.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(body);
+            }
+        });
+        server.start();
+        Log.info("health.started", "port", port);
     }
 }
