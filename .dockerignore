@@ -1,0 +1,8 @@
+# deny all
+*
+
+# allow only what the build needs
+!pom.xml
+!formatter.xml
+!src/
+!docker/
