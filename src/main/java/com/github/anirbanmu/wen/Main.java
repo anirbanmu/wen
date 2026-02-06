@@ -114,6 +114,31 @@ public class Main {
 
         gateway.connect();
 
+        // exit if unhealthy for a long time -- maybe something is really wrong?
+        long unhealthyThresholdMs = Long.parseLong(System.getenv().getOrDefault("UNHEALTHY_THRESHOLD_MS", "600000")); // 10 min
+        Thread.ofVirtual().name("watchdog").start(() -> {
+            long unhealthySince = 0;
+            while (true) {
+                try {
+                    Thread.sleep(10_000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (gateway.isHealthy()) {
+                    unhealthySince = 0;
+                } else {
+                    long now = System.currentTimeMillis();
+                    if (unhealthySince == 0) {
+                        unhealthySince = now;
+                        Log.warn("watchdog.unhealthy");
+                    } else if (now - unhealthySince > unhealthyThresholdMs) {
+                        Log.error("watchdog.exit", "unhealthy_ms", now - unhealthySince);
+                        System.exit(1);
+                    }
+                }
+            }
+        });
+
         // keep main thread alive
         try {
             Thread.currentThread().join();
