@@ -10,6 +10,7 @@ import com.github.anirbanmu.wen.discord.Gateway;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.Command.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
+import com.github.anirbanmu.wen.log.GcLog;
 import com.github.anirbanmu.wen.log.Log;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -26,6 +27,8 @@ import java.util.function.BooleanSupplier;
 
 public class Main {
     public static void main(String[] args) {
+        GcLog.install();
+
         String token = System.getenv("DISCORD_TOKEN");
         String appId = System.getenv("DISCORD_APPLICATION_ID");
 
