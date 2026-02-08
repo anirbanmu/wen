@@ -63,7 +63,9 @@ public class Main {
         Map<String, CalendarFeed> feeds = new HashMap<>();
         Map<String, Calendar> calendarConfigs = new HashMap<>();
         for (Calendar calConfig : config.calendars()) {
-            CalendarFeed feed = new CalendarFeed(calConfig.url(), calConfig.refreshInterval());
+            CalendarFeed feed = calConfig.prefilter() != null
+                ? new CalendarFeed(calConfig.url(), calConfig.refreshInterval(), calConfig.prefilter().toPredicate())
+                : new CalendarFeed(calConfig.url(), calConfig.refreshInterval());
             for (String keyword : calConfig.keywords()) {
                 feeds.put(keyword, feed);
                 calendarConfigs.put(keyword, calConfig);
@@ -116,6 +118,12 @@ public class Main {
         }
 
         gateway.connect();
+
+        Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("shutdown").unstarted(() -> {
+            Log.info("shutdown.started");
+            gateway.disconnect();
+            Log.info("shutdown.complete");
+        }));
 
         // exit if unhealthy for a long time -- maybe something is really wrong?
         long unhealthyThresholdMs = Long.parseLong(System.getenv().getOrDefault("UNHEALTHY_THRESHOLD_MS", "600000")); // 10 min
