@@ -1,84 +1,42 @@
 # wen?
 
-A Discord bot that answers: *"When is the next [event]?"*
+A Discord bot that tells you when stuff is. Written in Java because why not.
 
-Query iCal feeds via slash commands.
+`/wen f1` → next F1 race. `/wen f1 sprint` → next sprint. That's it. That's the bot.
 
-## Features
+## What it does
 
-- **Calendar Integration** — Fetches and parses iCal (.ics) feeds
-- **Keyword Matching** — e.g. `/wen f1` → looks up the F1 race calendar
-- **Event Filtering** — e.g. `/wen f1 sprint` → only show sprint races
-- **Free-text Search** — unrecognized filters search across summary, location, and description
-- **Autocomplete** — suggestions as you type
-- **Background Refresh** — Calendars refresh on configurable intervals
-- **Fallback Calendar** — optional default when no keyword matches
-- **Health Check** — HTTP health endpoint for orchestrators
+- Fetches iCal (.ics) feeds in the background
+- Responds to Discord slash commands with upcoming events
+- Keyword lookup, named filters, free-text search, autocomplete
+- Prefilters for noisy calendars (e.g., only "Grand Prix" events from a full F1 feed)
+- Health check endpoint for orchestrators
 
-## Tech
+## What it runs on
 
-- Java 25
-- `java.net.http` (HttpClient, WebSocket)
-- `biweekly` for iCal parsing
-- `tomlj` for configuration
-- `dsl-json` for JSON serialization
-- virtual threads
-- ZGC
+128MB heap. Shared CPU. One Fly.io machine.
+
+| | |
+|---|---|
+| Runtime | Java 25, JLink-stripped to only the modules the app needs |
+| GC | ZGC, 90MB soft max, compact object headers |
+| Concurrency | Virtual threads — Gateway, calendar refresh, HTTP, health |
+| HTTP | `java.net.http` — HttpClient + WebSocket |
+| Parsing | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON) |
+| Container | Multi-stage Docker, `debian:stable-slim` runtime |
+| Deployment | Fly.io, `shared-cpu-1x`, 256MB |
+
+128MB heap, ZGC, virtual threads. Java's fine.
 
 ---
 
-## Discord Setup
+## Usage
 
-### 1. Create Application
-
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application** → name it (e.g., "wen")
-3. Note down the **Application ID** (you'll need this)
-
-### 2. Create Bot
-
-1. Go to the **Bot** tab
-2. Click **Add Bot**
-3. Under **Token**, click **Reset Token** and copy it — this is your `BOT_TOKEN`
-4. **Keep this secret!** Never commit it to git.
-
-### 3. Bot Settings
-
-Under the **Bot** tab, configure:
-
-|          Setting           |    Value    |            Reason            |
-|----------------------------|-------------|------------------------------|
-| Public Bot                 | Your choice | Whether others can invite it |
-| Requires OAuth2 Code Grant | ❌ Off       | Not needed                   |
-| Presence Intent            | ❌ Off       | We don't track presence      |
-| Server Members Intent      | ❌ Off       | We don't need member lists   |
-| Message Content Intent     | ❌ Off       | We use slash commands only   |
-
-### 4. Required Permissions
-
-**OAuth2 Scopes:**
-- `bot`
-- `applications.commands`
-
-**Bot Permissions:**
-- None required
-
-### 5. Generate Invite URL
-
-1. Go to **OAuth2** → **URL Generator**
-2. Select scopes: `bot`, `applications.commands`
-   - **Note:** `bot` is required for the bot to appear in the member list.
-   - `applications.commands` is required for slash commands.
-3. Bot permissions: none
-4. Copy the generated URL and open it to invite the bot to your server
-
-### 6. Environment Variables
-
-The bot expects:
-
-```bash
-DISCORD_TOKEN=your_bot_token_here
-DISCORD_APPLICATION_ID=your_application_id_here
+```
+/wen f1              → next F1 event
+/wen f1 sprint       → named filter
+/wen f1 monaco       → free-text search across event fields
+/wen help            → list available calendars and filters
 ```
 
 ---
@@ -104,37 +62,61 @@ field = "summary"
 contains = "Sprint"
 ```
 
-### Calendar Fields
+### Calendar fields
 
-|       Field       | Required |                   Description                   |
-|-------------------|----------|-------------------------------------------------|
-| `name`            | ✅        | Display name for the calendar                   |
-| `url`             | ✅        | iCal feed URL                                   |
-| `keywords`        | ✅        | Trigger words (e.g., `["f1", "formula1"]`)      |
-| `refreshInterval` | ❌        | How often to refresh (default: `PT6H`)          |
-| `fallback`        | ❌        | Use when no keyword matches (default: `false`)  |
-| `prefilter`       | ❌        | Filter applied to all events from this calendar |
-| `filters.<name>`  | ❌        | Named filters users can specify                 |
+| Field | Required | Description |
+|---|---|---|
+| `name` | ✅ | Display name |
+| `url` | ✅ | iCal feed URL |
+| `keywords` | ✅ | Trigger words (e.g., `["f1", "formula1"]`) |
+| `refreshInterval` | | How often to refresh (default: `PT6H`) |
+| `fallback` | | Use when no keyword matches (default: `false`) |
+| `prefilter` | | Filter applied to all events from this calendar |
+| `filters.<name>` | | Named filters users can specify |
 
-### Filter Fields
+### Filter fields
 
-|   Field    | Required |                                          Description                                          |
-|------------|----------|-----------------------------------------------------------------------------------------------|
-| `contains` | ✅        | Substring to match (case-insensitive)                                                         |
-| `field`    | ❌        | Which field to match: `summary`, `description`, `location`, `categories` (default: `summary`) |
+| Field | Required | Description |
+|---|---|---|
+| `contains` | ✅ | Substring to match (case-insensitive) |
+| `field` | | `summary`, `description`, `location`, or `categories` (default: `summary`) |
 
 ---
 
-## Usage
+## Discord setup
 
-```
-/wen <query>
+### 1. Create application
 
-Examples:
-/wen f1              → next F1 race
-/wen f1 sprint       → next F1 sprint race (named filter)
-/wen f1 monaco       → free-text search across event fields
-/wen help            → list available calendars and filters
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. **New Application** → name it
+3. Note the **Application ID**
+
+### 2. Create bot
+
+1. **Bot** tab → **Add Bot**
+2. **Reset Token** → copy it (this is your `DISCORD_TOKEN`)
+
+### 3. Bot settings
+
+| Setting | Value | Why |
+|---|---|---|
+| Public Bot | Your call | Whether others can invite it |
+| Presence Intent | Off | Don't need it |
+| Server Members Intent | Off | Don't need it |
+| Message Content Intent | Off | Slash commands only |
+
+### 4. Invite
+
+1. **OAuth2** → **URL Generator**
+2. Scopes: `bot`, `applications.commands`
+3. Bot permissions: none
+4. Open the URL to invite
+
+### 5. Environment variables
+
+```bash
+DISCORD_TOKEN=your_bot_token
+DISCORD_APPLICATION_ID=your_application_id
 ```
 
 ---
@@ -145,27 +127,13 @@ Examples:
 mvn clean package
 ```
 
-Produces a shaded JAR in `target/`.
-
-## Running
+## Running locally
 
 ```bash
-java -Dconfig=config.toml -jar target/wen.jar
+DISCORD_TOKEN="..." DISCORD_APPLICATION_ID="..." java -Dconfig=config.toml -jar target/wen.jar
 ```
 
-The `-Dconfig` system property defaults to `config.toml` in the working directory.
-
-## Development
-
-Run locally:
-
-```bash
-DISCORD_TOKEN="your_token" DISCORD_APPLICATION_ID="your_app_id" mvn exec:java -Dexec.mainClass="com.github.anirbanmu.wen.Main"
-```
-
----
-
-## Deployment
+## Deploying
 
 ### Docker
 
@@ -174,11 +142,17 @@ docker build -t wen .
 docker run -e DISCORD_TOKEN=... -e DISCORD_APPLICATION_ID=... -e WEN_CONFIG_B64=... wen
 ```
 
-`WEN_CONFIG_B64` is your `config.toml` base64-encoded. The entrypoint decodes it to `/tmp/config.toml` at startup.
+`WEN_CONFIG_B64` is your `config.toml`, base64-encoded. The entrypoint decodes it at startup.
 
 ### Fly.io
 
-Configured via `fly.toml`. Deploys with a health check on `/health` (port 8080).
+```bash
+fly apps create wen
+fly secrets set DISCORD_TOKEN=... DISCORD_APPLICATION_ID=... WEN_CONFIG_B64=...
+fly deploy
+```
+
+Subsequent deploys just need `fly deploy`. Health check on `/health:8080`, configured in `fly.toml`.
 
 ---
 
