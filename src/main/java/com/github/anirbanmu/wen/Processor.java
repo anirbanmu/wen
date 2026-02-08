@@ -126,7 +126,8 @@ public class Processor {
         desc.append("Example: `/wen f1 race`");
 
         return InteractionResponse.embeds(List.of(new InteractionResponse.Embed(
-            "wen help", desc.toString(), 0x5865F2, null, null, null, null)));
+            "wen help", desc.toString(), 0x5865F2, null, null,
+            new InteractionResponse.Footer("bot source · github.com/anirbanmu/wen", null), null)));
     }
 
     public InteractionResponse process(Interaction interaction) {
