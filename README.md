@@ -156,6 +156,10 @@ Subsequent deploys just need `fly deploy`. Health check on `/health:8080`, confi
 
 ---
 
+Built for the "wen race" crowd. You know who you are.
+
+---
+
 ## License
 
 MIT
