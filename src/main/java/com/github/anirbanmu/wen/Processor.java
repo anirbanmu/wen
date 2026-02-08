@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 public class Processor {
-    private record CalendarContext(Calendar config, CalendarFeed feed, int color) {
+    private record CalendarContext(Calendar config, CalendarFeed feed, int color, List<String> summaryPrefixes) {
     }
 
     private record ParsedQuery(CalendarContext calendar, Predicate<CalendarEvent> filter, String error) {
@@ -35,9 +35,11 @@ public class Processor {
         }
     }
 
+    private static final String[] SUMMARY_SEPARATORS = {" | ", ": ", " - ", " "};
+
     private final Map<String, CalendarContext> contexts;
     private final CalendarContext fallback;
-    private final List<String> allSuggestions; // sorted: shortest first, then alpha
+    private final List<String> allSuggestions;
     private final InteractionResponse helpResponse;
 
     public Processor(Map<String, Calendar> calendarConfigs, Map<String, CalendarFeed> feeds) {
@@ -49,51 +51,52 @@ public class Processor {
             Calendar config = entry.getValue();
             CalendarFeed feed = feeds.get(entry.getKey());
 
-            if (feed != null) {
-                int color = generateColor(config.name(), config.url());
-                CalendarContext ctx = new CalendarContext(config, feed, color);
+            if (feed == null) {
+                continue;
+            }
 
-                for (String keyword : config.keywords()) {
-                    String key = keyword.toLowerCase();
-                    contexts.put(key, ctx);
-                    suggestions.add(key);
-                    // keyword + filter combos
+            int color = generateColor(config.name(), config.url());
+            List<String> summaryPrefixes = buildSummaryPrefixes(config);
+            CalendarContext ctx = new CalendarContext(config, feed, color, summaryPrefixes);
+
+            // index by keyword (slugified) and slugified name
+            for (String keyword : config.keywords()) {
+                String key = slugify(keyword);
+                contexts.put(key, ctx);
+                suggestions.add(key);
+                for (String filterKey : config.filters().keySet()) {
+                    suggestions.add(key + " " + filterKey);
+                }
+            }
+
+            if (config.name() != null) {
+                String nameSlug = slugify(config.name());
+                if (!contexts.containsKey(nameSlug)) {
+                    contexts.put(nameSlug, ctx);
+                    suggestions.add(nameSlug);
                     for (String filterKey : config.filters().keySet()) {
-                        suggestions.add(key + " " + filterKey);
+                        suggestions.add(nameSlug + " " + filterKey);
                     }
                 }
+            }
 
-                if (config.name() != null) {
-                    String nameKey = config.name().toLowerCase();
-                    contexts.put(nameKey, ctx);
-                    suggestions.add(nameKey);
-                    // name + filter combos
-                    for (String filterKey : config.filters().keySet()) {
-                        suggestions.add(nameKey + " " + filterKey);
-                    }
-                }
-
-                if (config.fallback() && foundFallback == null) {
-                    foundFallback = ctx;
-                }
+            if (config.fallback() && foundFallback == null) {
+                foundFallback = ctx;
             }
         }
 
         this.fallback = foundFallback;
 
+        suggestions.add("help");
+
+        // shortest first, then alphabetical — best autocomplete UX
         List<String> sorted = new ArrayList<>(suggestions);
-        sorted.sort((a, b) -> {
-            if (a.length() != b.length()) {
-                return a.length() - b.length();
-            }
-            return a.compareTo(b);
-        });
+        sorted.sort((a, b) -> a.length() != b.length() ? a.length() - b.length() : a.compareTo(b));
         this.allSuggestions = List.copyOf(sorted);
         this.helpResponse = buildHelpResponse(contexts.values());
     }
 
     private static InteractionResponse buildHelpResponse(Collection<CalendarContext> contexts) {
-        // dedupe calendars (same calendar indexed by multiple keywords)
         Set<Calendar> seen = new HashSet<>();
         List<CalendarContext> unique = new ArrayList<>();
         for (CalendarContext ctx : contexts) {
@@ -122,16 +125,8 @@ public class Processor {
         desc.append("**Usage:** `/wen <calendar> [filter]`\n");
         desc.append("Example: `/wen f1 race`");
 
-        InteractionResponse.Embed embed = new InteractionResponse.Embed(
-            "wen help",
-            desc.toString(),
-            0x5865F2,
-            null,
-            null,
-            null,
-            null);
-
-        return InteractionResponse.embeds(List.of(embed));
+        return InteractionResponse.embeds(List.of(new InteractionResponse.Embed(
+            "wen help", desc.toString(), 0x5865F2, null, null, null, null)));
     }
 
     public InteractionResponse process(Interaction interaction) {
@@ -163,7 +158,7 @@ public class Processor {
         return formatResponse(parsed.calendar(), result);
     }
 
-    private String getOptionValue(List<Option> options, String name) {
+    private static String getOptionValue(List<Option> options, String name) {
         if (options == null) {
             return null;
         }
@@ -176,7 +171,7 @@ public class Processor {
     }
 
     private ParsedQuery parseQuery(String query) {
-        // empty -> fallback or help
+        // empty -> fallback calendar or help
         if (query == null || query.isBlank()) {
             return fallback != null ? ParsedQuery.success(fallback, _ -> true) : ParsedQuery.error("help");
         }
@@ -187,17 +182,18 @@ public class Processor {
             return ParsedQuery.error("help");
         }
 
-        // exact match (calendar keyword or name)
         CalendarContext ctx = contexts.get(q);
         if (ctx != null) {
             return ParsedQuery.success(ctx, _ -> true);
         }
 
-        // prefix match (calendar + filter)
-        for (String key : contexts.keySet()) {
-            if (q.startsWith(key + " ")) {
-                ctx = contexts.get(key);
-                String filterPart = q.substring(key.length() + 1);
+        // split on first space: "f1 sprint" -> key="f1", filter="sprint"
+        // works because all context keys are spaceless (slugified)
+        int space = q.indexOf(' ');
+        if (space > 0) {
+            ctx = contexts.get(q.substring(0, space));
+            if (ctx != null) {
+                String filterPart = q.substring(space + 1);
                 return ParsedQuery.success(ctx, resolveFilter(ctx, filterPart));
             }
         }
@@ -205,7 +201,8 @@ public class Processor {
         return ParsedQuery.error("Unknown calendar: " + query.strip());
     }
 
-    private Predicate<CalendarEvent> resolveFilter(CalendarContext ctx, String filterText) {
+    // named filter -> free-text fallback
+    private static Predicate<CalendarEvent> resolveFilter(CalendarContext ctx, String filterText) {
         if (filterText == null || filterText.isBlank()) {
             return _ -> true;
         }
@@ -213,38 +210,36 @@ public class Processor {
         if (namedFilter != null) {
             return namedFilter.toPredicate();
         }
-        // fallback: free-text search across summary, location, description
         String q = filterText.toLowerCase();
         return event -> (event.lowerSummary() != null && event.lowerSummary().contains(q)) ||
             (event.lowerLocation() != null && event.lowerLocation().contains(q)) ||
             (event.lowerDescription() != null && event.lowerDescription().contains(q));
     }
 
+    // autocomplete: prefix matches -> substring matches, shortest first
     private InteractionResponse processAutocomplete(Interaction interaction) {
         String query = getFocusedOptionValue(interaction.data().options());
-        String q = query == null ? "" : query.strip().toLowerCase();
+        String q = query == null ? "" : query.toLowerCase();
 
         List<InteractionResponse.Choice> choices = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        // pass 1: prefix matches
+        // prefix matches
         for (String s : allSuggestions) {
             if (s.startsWith(q) && seen.add(s)) {
                 choices.add(new InteractionResponse.Choice(s, s));
                 if (choices.size() >= 25) {
-                    break;
+                    return InteractionResponse.autocomplete(choices);
                 }
             }
         }
 
-        // pass 2: substring matches
-        if (choices.size() < 25) {
-            for (String s : allSuggestions) {
-                if (s.contains(q) && seen.add(s)) {
-                    choices.add(new InteractionResponse.Choice(s, s));
-                    if (choices.size() >= 25) {
-                        break;
-                    }
+        // substring matches
+        for (String s : allSuggestions) {
+            if (s.contains(q) && seen.add(s)) {
+                choices.add(new InteractionResponse.Choice(s, s));
+                if (choices.size() >= 25) {
+                    return InteractionResponse.autocomplete(choices);
                 }
             }
         }
@@ -252,7 +247,7 @@ public class Processor {
         return InteractionResponse.autocomplete(choices);
     }
 
-    private String getFocusedOptionValue(List<Option> options) {
+    private static String getFocusedOptionValue(List<Option> options) {
         if (options == null) {
             return null;
         }
@@ -269,11 +264,11 @@ public class Processor {
             return InteractionResponse.message("No upcoming events found for " + ctx.config().name());
         }
 
-        List<String> keywords = ctx.config().keywords();
+        List<String> prefixes = ctx.summaryPrefixes();
         StringBuilder desc = new StringBuilder();
 
         if (result.current() != null) {
-            desc.append(formatLive(result.current(), keywords));
+            desc.append(formatLive(result.current(), prefixes));
             if (!result.upcoming().isEmpty()) {
                 desc.append("\n\n");
             }
@@ -283,30 +278,22 @@ public class Processor {
             if (i > 0) {
                 desc.append("\n\n");
             }
-            desc.append(formatUpcoming(result.upcoming().get(i), keywords));
+            desc.append(formatUpcoming(result.upcoming().get(i), prefixes));
         }
 
         String timestamp = java.time.Instant.now().toString();
-        InteractionResponse.Footer footer = new InteractionResponse.Footer("wen?", null);
-        InteractionResponse.Author author = new InteractionResponse.Author(ctx.config().name(), null);
 
-        InteractionResponse.Embed embed = new InteractionResponse.Embed(
-            null,
-            desc.toString(),
-            ctx.color(),
-            null,
-            timestamp,
-            footer,
-            author);
-
-        return InteractionResponse.embeds(List.of(embed));
+        return InteractionResponse.embeds(List.of(new InteractionResponse.Embed(
+            null, desc.toString(), ctx.color(), null, timestamp,
+            new InteractionResponse.Footer("wen?", null),
+            new InteractionResponse.Author(ctx.config().name(), null))));
     }
 
-    private static String formatLive(CalendarEvent event, List<String> keywords) {
+    private static String formatLive(CalendarEvent event, List<String> prefixes) {
         long endEpoch = event.end().getEpochSecond();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), keywords)).append("**");
+        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), prefixes)).append("**");
 
         if (event.location() != null && !event.location().isBlank()) {
             sb.append(" · ").append(event.location());
@@ -317,45 +304,76 @@ public class Processor {
         return sb.toString();
     }
 
-    // strip keyword prefix from summary (some calendars prefix events with their name)
-    private static String cleanSummary(String summary, String lowerSummary, List<String> keywords) {
-        if (summary == null || keywords == null) {
-            return summary;
-        }
-        for (String keyword : keywords) {
-            // keywords are already lowercase from config
-            if (lowerSummary.startsWith(keyword + ": ")) {
-                return summary.substring(keyword.length() + 2).trim();
-            }
-            if (lowerSummary.startsWith(keyword + " ")) {
-                return summary.substring(keyword.length() + 1).trim();
-            }
-        }
-        return summary;
-    }
-
     private static final long SECONDS_IN_WEEK = 7 * 24 * 60 * 60;
 
-    private static String formatUpcoming(CalendarEvent event, List<String> keywords) {
+    private static String formatUpcoming(CalendarEvent event, List<String> prefixes) {
         long startEpoch = event.start().getEpochSecond();
         long secondsUntil = startEpoch - java.time.Instant.now().getEpochSecond();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), keywords)).append("**");
+        sb.append("**").append(cleanSummary(event.summary(), event.lowerSummary(), prefixes)).append("**");
 
         if (event.location() != null && !event.location().isBlank()) {
             sb.append(" · ").append(event.location());
         }
 
         sb.append("\n<t:").append(startEpoch).append(":R>");
-
-        if (secondsUntil > SECONDS_IN_WEEK) {
-            sb.append(" · <t:").append(startEpoch).append(":f>");
-        } else {
-            sb.append(" · <t:").append(startEpoch).append(":t>");
-        }
+        sb.append(" · <t:").append(startEpoch).append(secondsUntil > SECONDS_IN_WEEK ? ":f>" : ":t>");
 
         return sb.toString();
+    }
+
+    // strip calendar prefix from summary, longest match first
+    static String cleanSummary(String summary, String lowerSummary, List<String> prefixes) {
+        if (summary == null || prefixes == null) {
+            return summary;
+        }
+        for (String prefix : prefixes) {
+            for (String sep : SUMMARY_SEPARATORS) {
+                String full = prefix + sep;
+                if (lowerSummary.startsWith(full)) {
+                    return summary.substring(full.length()).trim();
+                }
+            }
+        }
+        return summary;
+    }
+
+    // "🏎️ NASCAR Cup Series" -> "nascar-cup-series", "f1" -> "f1"
+    static String slugify(String value) {
+        return value.toLowerCase()
+            .replaceAll("[^\\p{L}\\p{N}\\s-]", "")
+            .strip()
+            .replaceAll("\\s+", "-");
+    }
+
+    // prefixes for summary stripping, longest first
+    // "🏁 NASCAR Cup Series" keywords=["nascar"] -> ["nascar cup series", "nascar cup", "nascar"]
+    static List<String> buildSummaryPrefixes(Calendar config) {
+        List<String> prefixes = new ArrayList<>();
+
+        if (config.name() != null) {
+            String cleaned = config.name().toLowerCase()
+                .replaceAll("[^\\p{L}\\p{N}\\s-]", "")
+                .strip();
+
+            if (!cleaned.isEmpty()) {
+                String[] words = cleaned.split("\\s+");
+                for (int end = words.length; end >= 1; end--) {
+                    prefixes.add(String.join(" ", List.of(words).subList(0, end)));
+                }
+            }
+        }
+
+        // keywords too — "wsbk" matches "WSBK | ..." even though name is "World Superbikes"
+        for (String kw : config.keywords()) {
+            prefixes.add(kw.toLowerCase());
+        }
+
+        // dedupe and sort longest first for greedy matching
+        return prefixes.stream().distinct()
+            .sorted((a, b) -> b.length() - a.length())
+            .toList();
     }
 
     private static int generateColor(String name, String url) {
