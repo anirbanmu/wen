@@ -106,11 +106,14 @@ public class Processor {
         }
 
         StringBuilder desc = new StringBuilder();
-        desc.append("**Available calendars:**\n\n");
+        desc.append("**Usage:** `/wen <calendar> [filter]`\n");
+        desc.append("Examples: `/wen f1 sprint` · `/wen wrc monaco`\n\n");
+        desc.append("───\n\n");
+        desc.append("**Available calendars:**\n");
 
         for (CalendarContext ctx : unique) {
             Calendar config = ctx.config();
-            desc.append("**").append(config.name()).append("**");
+            desc.append("\n**").append(config.name()).append("**");
             if (!config.keywords().isEmpty()) {
                 desc.append(" · `").append(String.join("`, `", config.keywords())).append("`");
             }
@@ -119,15 +122,15 @@ public class Processor {
             if (!config.filters().isEmpty()) {
                 desc.append("filters: `").append(String.join("`, `", config.filters().keySet())).append("`\n");
             }
+
             desc.append("\n");
         }
 
-        desc.append("**Usage:** `/wen <calendar> [filter]`\n");
-        desc.append("Example: `/wen f1 race`");
+        desc.append("───\n");
+        desc.append("bot source · [github.com/anirbanmu/wen](https://github.com/anirbanmu/wen)");
 
         return InteractionResponse.embeds(List.of(new InteractionResponse.Embed(
-            "wen help", desc.toString(), 0x5865F2, null, null,
-            new InteractionResponse.Footer("bot source · github.com/anirbanmu/wen", null), null)));
+            "wen help", desc.toString(), 0x5865F2, null, null, null, null)));
     }
 
     public InteractionResponse process(Interaction interaction) {

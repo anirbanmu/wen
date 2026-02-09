@@ -16,15 +16,15 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 
 128MB heap. Shared CPU. One Fly.io machine.
 
-| | |
-|---|---|
-| Runtime | Java 25, JLink-stripped to only the modules the app needs |
-| GC | ZGC, 90MB soft max, compact object headers |
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Runtime     | Java 25, JLink-stripped to only the modules the app needs |
+| GC          | ZGC, 90MB soft max, compact object headers                |
 | Concurrency | Virtual threads — Gateway, calendar refresh, HTTP, health |
-| HTTP | `java.net.http` — HttpClient + WebSocket |
-| Parsing | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON) |
-| Container | Multi-stage Docker, `debian:stable-slim` runtime |
-| Deployment | Fly.io, `shared-cpu-1x`, 256MB |
+| HTTP        | `java.net.http` — HttpClient + WebSocket                  |
+| Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)    |
+| Container   | Multi-stage Docker, `debian:stable-slim` runtime          |
+| Deployment  | Fly.io, `shared-cpu-1x`, 256MB                            |
 
 128MB heap, ZGC, virtual threads. Java's fine.
 
@@ -64,22 +64,22 @@ contains = "Sprint"
 
 ### Calendar fields
 
-| Field | Required | Description |
-|---|---|---|
-| `name` | ✅ | Display name |
-| `url` | ✅ | iCal feed URL |
-| `keywords` | ✅ | Trigger words (e.g., `["f1", "formula1"]`) |
-| `refreshInterval` | | How often to refresh (default: `PT6H`) |
-| `fallback` | | Use when no keyword matches (default: `false`) |
-| `prefilter` | | Filter applied to all events from this calendar |
-| `filters.<name>` | | Named filters users can specify |
+|       Field       | Required |                   Description                   |
+|-------------------|----------|-------------------------------------------------|
+| `name`            | ✅        | Display name                                    |
+| `url`             | ✅        | iCal feed URL                                   |
+| `keywords`        | ✅        | Trigger words (e.g., `["f1", "formula1"]`)      |
+| `refreshInterval` |          | How often to refresh (default: `PT6H`)          |
+| `fallback`        |          | Use when no keyword matches (default: `false`)  |
+| `prefilter`       |          | Filter applied to all events from this calendar |
+| `filters.<name>`  |          | Named filters users can specify                 |
 
 ### Filter fields
 
-| Field | Required | Description |
-|---|---|---|
-| `contains` | ✅ | Substring to match (case-insensitive) |
-| `field` | | `summary`, `description`, `location`, or `categories` (default: `summary`) |
+|   Field    | Required |                                Description                                 |
+|------------|----------|----------------------------------------------------------------------------|
+| `contains` | ✅        | Substring to match (case-insensitive)                                      |
+| `field`    |          | `summary`, `description`, `location`, or `categories` (default: `summary`) |
 
 ---
 
@@ -98,12 +98,12 @@ contains = "Sprint"
 
 ### 3. Bot settings
 
-| Setting | Value | Why |
-|---|---|---|
-| Public Bot | Your call | Whether others can invite it |
-| Presence Intent | Off | Don't need it |
-| Server Members Intent | Off | Don't need it |
-| Message Content Intent | Off | Slash commands only |
+|        Setting         |   Value   |             Why              |
+|------------------------|-----------|------------------------------|
+| Public Bot             | Your call | Whether others can invite it |
+| Presence Intent        | Off       | Don't need it                |
+| Server Members Intent  | Off       | Don't need it                |
+| Message Content Intent | Off       | Slash commands only          |
 
 ### 4. Invite
 
