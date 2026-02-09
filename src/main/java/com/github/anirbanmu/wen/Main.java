@@ -161,7 +161,7 @@ public class Main {
     private static void registerWenCommand(WenConfig config, DiscordHttpClient httpClient, String appId) {
         Option queryOption = new Option(
             "query",
-            "Calendar and filter (e.g. 'f1 race')",
+            "Calendar and filter (e.g. 'f1 sprint') or 'help'",
             Command.TYPE_STRING,
             false,
             null,
