@@ -5,11 +5,11 @@ import biweekly.ICalendar;
 import biweekly.component.VEvent;
 import biweekly.util.com.google.ical.compat.javautil.DateIterator;
 import com.github.anirbanmu.wen.log.Log;
+import com.github.anirbanmu.wen.util.Http;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,6 @@ public class CalendarFeed {
     private final Duration refreshInterval;
     private final Predicate<CalendarEvent> filter;
     private final Thread thread;
-    private final HttpClient client;
     private volatile List<CalendarEvent> events = Collections.emptyList();
 
     public CalendarFeed(String url, Duration refreshInterval) {
@@ -39,7 +38,6 @@ public class CalendarFeed {
         this.url = url;
         this.refreshInterval = refreshInterval;
         this.filter = filter;
-        this.client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
         this.thread = Thread.ofVirtual().name("calendar[" + url.hashCode() + "]").unstarted(this::runLoop);
         this.thread.start();
     }
@@ -115,7 +113,7 @@ public class CalendarFeed {
         REFRESH_LIMIT.acquire();
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
-            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = Http.CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
             if (response.statusCode() != 200) {
                 Log.error("calendar_fetch_failed", "url", url, "status", response.statusCode());

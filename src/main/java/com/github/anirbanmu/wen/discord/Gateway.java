@@ -6,10 +6,10 @@ import com.github.anirbanmu.wen.discord.json.GatewayEventParser.ParseResult;
 import com.github.anirbanmu.wen.discord.json.Identify;
 import com.github.anirbanmu.wen.discord.json.Interaction;
 import com.github.anirbanmu.wen.log.Log;
+import com.github.anirbanmu.wen.util.Http;
 import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
@@ -30,7 +30,6 @@ public class Gateway {
     private static final long MAX_RECONNECT_DELAY_MS = 30_000;
 
     private final String token;
-    private final HttpClient httpClient;
     private final GatewayEventParser parser;
     private final Consumer<Interaction> interactionHandler;
     private final ExecutorService handlerExecutor;
@@ -50,9 +49,6 @@ public class Gateway {
     public Gateway(String token, Consumer<Interaction> interactionHandler) {
         this.token = token;
         this.interactionHandler = interactionHandler;
-        this.httpClient = HttpClient.newBuilder()
-            .executor(Executors.newVirtualThreadPerTaskExecutor())
-            .build();
         this.parser = new GatewayEventParser();
         this.handlerExecutor = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -81,7 +77,7 @@ public class Gateway {
             };
             currentSession = session;
 
-            httpClient.newWebSocketBuilder()
+            Http.CLIENT.newWebSocketBuilder()
                 .buildAsync(URI.create(url), session)
                 .exceptionally(ex -> {
                     Log.error("gateway.connect_failed", ex);

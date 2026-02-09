@@ -3,15 +3,14 @@ package com.github.anirbanmu.wen.discord;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
 import com.github.anirbanmu.wen.log.Log;
+import com.github.anirbanmu.wen.util.Http;
 import com.github.anirbanmu.wen.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 public class DiscordHttpClient {
@@ -20,14 +19,10 @@ public class DiscordHttpClient {
     private static final int REFILL_MS = 22; // ~45 req/s
 
     private final String token;
-    private final HttpClient httpClient;
     private final Semaphore limiter;
 
     public DiscordHttpClient(String token) {
         this.token = token;
-        this.httpClient = HttpClient.newBuilder()
-            .executor(Executors.newVirtualThreadPerTaskExecutor())
-            .build();
         this.limiter = new Semaphore(MAX_BURST);
         startRefillThread();
     }
@@ -83,7 +78,7 @@ public class DiscordHttpClient {
     private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
             limiter.acquire();
-            HttpResponse<Void> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.discarding());
+            HttpResponse<Void> response = Http.CLIENT.send(builder.build(), HttpResponse.BodyHandlers.discarding());
             if (response.statusCode() >= 400) {
                 Log.error("http.request_failed", "status", response.statusCode());
                 return new DiscordResult.Failure<>("Discord API error", response.statusCode());
