@@ -11,13 +11,20 @@ else
 fi
 
 exec java \
-  -Xms128m \
-  -Xmx128m \
+  -XX:MaxRAM=256m \
+  -XX:ActiveProcessorCount=1 \
+  \
+  -Xms48m \
+  -Xmx48m \
+  -XX:SoftMaxHeapSize=32m \
+  \
   -XX:+UseZGC \
   -XX:+AlwaysPreTouch \
   -XX:ZAllocationSpikeTolerance=5 \
-  -XX:SoftMaxHeapSize=90m \
   -XX:+UseCompactObjectHeaders \
+  \
+  -XX:ReservedCodeCacheSize=16m \
+  \
   -Dconfig="$CONFIG_PATH" \
   -jar wen.jar \
   "$@"
