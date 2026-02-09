@@ -170,7 +170,9 @@ public class Main {
         Command wenCommand = new Command(
             "wen",
             "When is the next event?",
-            List.of(queryOption));
+            List.of(queryOption),
+            List.of(Command.INTEGRATION_GUILD_INSTALL, Command.INTEGRATION_USER_INSTALL),
+            List.of(Command.CONTEXT_GUILD, Command.CONTEXT_BOT_DM, Command.CONTEXT_PRIVATE_CHANNEL));
 
         DiscordResult<Void> result = httpClient.registerCommands(appId, List.of(wenCommand));
 
