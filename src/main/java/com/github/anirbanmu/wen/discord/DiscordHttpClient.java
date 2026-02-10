@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
@@ -75,10 +76,14 @@ public class DiscordHttpClient {
         }
     }
 
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMillis(2500);
+
     private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
             limiter.acquire();
-            HttpResponse<Void> response = Http.CLIENT.send(builder.build(), HttpResponse.BodyHandlers.discarding());
+            HttpResponse<Void> response = Http.CLIENT.send(
+                builder.timeout(REQUEST_TIMEOUT).build(),
+                HttpResponse.BodyHandlers.discarding());
             if (response.statusCode() >= 400) {
                 Log.error("http.request_failed", "status", response.statusCode());
                 return new DiscordResult.Failure<>("Discord API error", response.statusCode());
