@@ -152,7 +152,8 @@ public class Gateway {
         private volatile WebSocket socket;
         private volatile Thread heartbeatThread;
         private volatile long heartbeatInterval;
-        private volatile CompletableFuture<Void> heartbeatAck;
+        private volatile long lastHeartbeatSentAt;
+        private volatile long lastAckAt;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final StringBuilder messageBuffer = new StringBuilder();
 
@@ -253,10 +254,7 @@ public class Gateway {
                     }
                     case GatewayEvent.HeartbeatRequest _ -> sendHeartbeat();
                     case GatewayEvent.HeartbeatAck _ -> {
-                        CompletableFuture<Void> ack = heartbeatAck;
-                        if (ack != null) {
-                            ack.complete(null);
-                        }
+                        lastAckAt = System.nanoTime();
                     }
                     case GatewayEvent.Reconnect _ -> {
                         Log.info("gateway.reconnect_requested");
@@ -311,6 +309,7 @@ public class Gateway {
             String hb = seq < 0 ? "{\"op\":1,\"d\":null}" : "{\"op\":1,\"d\":" + seq + "}";
             try {
                 ws.sendText(hb, true);
+                lastHeartbeatSentAt = System.nanoTime();
             } catch (Exception ex) {
                 Log.error("gateway.heartbeat_send_failed", ex);
                 close();
@@ -340,13 +339,10 @@ public class Gateway {
                     Thread.sleep((long) (heartbeatInterval * Math.random()));
 
                     while (!closed.get() && !Thread.currentThread().isInterrupted()) {
-                        heartbeatAck = new CompletableFuture<>();
                         sendHeartbeat();
-
                         Thread.sleep(heartbeatInterval);
 
-                        // check if ack arrived during sleep
-                        if (!heartbeatAck.isDone()) {
+                        if (lastAckAt < lastHeartbeatSentAt) {
                             Log.warn("gateway.heartbeat_timeout");
                             close();
                             return;
