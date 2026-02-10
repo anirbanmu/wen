@@ -285,14 +285,15 @@ public class Gateway {
         }
 
         private void sendResume() {
+            WebSocket ws = socket;
+            if (ws == null || closed.get()) {
+                return;
+            }
             String resume = String.format(
                 "{\"op\":%d,\"d\":{\"token\":\"%s\",\"session_id\":\"%s\",\"seq\":%d}}",
                 OP_RESUME, token, sessionId, lastSequence.get());
-            if (closed.get()) {
-                return;
-            }
             try {
-                socket.sendText(resume, true);
+                ws.sendText(resume, true);
                 Log.info("gateway.resume_sent");
             } catch (Exception ex) {
                 Log.error("gateway.resume_send_failed", ex);
@@ -317,14 +318,15 @@ public class Gateway {
         }
 
         private boolean sendOpcode(int op, Object data) {
-            if (closed.get()) {
+            WebSocket ws = socket;
+            if (ws == null || closed.get()) {
                 return false;
             }
             try {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 Json.DSL.serialize(data, out);
                 String payload = "{\"op\":" + op + ",\"d\":" + out.toString(StandardCharsets.UTF_8) + "}";
-                socket.sendText(payload, true);
+                ws.sendText(payload, true);
                 return true;
             } catch (Exception ex) {
                 Log.error("gateway.send_failed", ex);
