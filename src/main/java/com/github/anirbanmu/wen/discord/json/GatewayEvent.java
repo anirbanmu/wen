@@ -9,6 +9,9 @@ public sealed interface GatewayEvent {
     record Ready(String sessionId, String resumeGatewayUrl) implements GatewayEvent {
     }
 
+    record Resumed() implements GatewayEvent {
+    }
+
     record InteractionCreate(Interaction interaction) implements GatewayEvent {
     }
 

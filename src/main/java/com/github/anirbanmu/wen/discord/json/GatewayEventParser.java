@@ -59,6 +59,7 @@ public final class GatewayEventParser {
                 ReadyMsg msg = Json.DSL.deserialize(ReadyMsg.class, bais);
                 yield new GatewayEvent.Ready(msg.d().sessionId(), msg.d().resumeGatewayUrl());
             }
+            case "RESUMED" -> new GatewayEvent.Resumed();
             case "INTERACTION_CREATE" -> {
                 InteractionMsg msg = Json.DSL.deserialize(InteractionMsg.class, bais);
                 yield new GatewayEvent.InteractionCreate(msg.d());

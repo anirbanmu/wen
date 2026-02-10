@@ -6,7 +6,7 @@ import com.github.anirbanmu.wen.config.ConfigLoader;
 import com.github.anirbanmu.wen.config.WenConfig;
 import com.github.anirbanmu.wen.discord.DiscordHttpClient;
 import com.github.anirbanmu.wen.discord.DiscordResult;
-import com.github.anirbanmu.wen.discord.Gateway;
+import com.github.anirbanmu.wen.discord.PersistentGateway;
 import com.github.anirbanmu.wen.discord.json.Command;
 import com.github.anirbanmu.wen.discord.json.Command.Option;
 import com.github.anirbanmu.wen.discord.json.InteractionResponse;
@@ -83,7 +83,7 @@ public class Main {
 
         Processor processor = new Processor(calendarConfigs, feeds);
 
-        Gateway gateway = new Gateway(token, interaction -> {
+        PersistentGateway gateway = new PersistentGateway(token, interaction -> {
             long start = System.nanoTime();
             Log.info("interaction.received", "id", interaction.id());
             try {
