@@ -24,6 +24,7 @@ exec java \
   -XX:+UseCompactObjectHeaders \
   \
   -XX:ReservedCodeCacheSize=16m \
+  -XX:TieredStopAtLevel=1 \
   \
   -Dconfig="$CONFIG_PATH" \
   -jar wen.jar \
