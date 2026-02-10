@@ -18,6 +18,14 @@ public class DiscordHttpClient {
     private static final String BASE_URL = "https://discord.com/api/v10";
     private static final int MAX_BURST = 45;
     private static final int REFILL_MS = 22; // ~45 req/s
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMillis(2500);
+    private static final long KEEPALIVE_INTERVAL_MS = 270_000; // 4.5 min
+
+    private static final HttpRequest KEEPALIVE_REQUEST = HttpRequest.newBuilder()
+        .uri(URI.create(BASE_URL + "/gateway"))
+        .timeout(REQUEST_TIMEOUT)
+        .GET()
+        .build();
 
     private final String token;
     private final Semaphore limiter;
@@ -26,6 +34,7 @@ public class DiscordHttpClient {
         this.token = token;
         this.limiter = new Semaphore(MAX_BURST);
         startRefillThread();
+        startKeepaliveThread();
     }
 
     private void startRefillThread() {
@@ -41,6 +50,22 @@ public class DiscordHttpClient {
                     break;
                 } catch (Exception e) {
                     Log.error("rate_limiter.refill_error", e);
+                }
+            }
+        });
+    }
+
+    private void startKeepaliveThread() {
+        Thread.ofVirtual().name("http-keepalive").start(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(KEEPALIVE_INTERVAL_MS);
+                    int status = Http.CLIENT.send(KEEPALIVE_REQUEST, HttpResponse.BodyHandlers.discarding()).statusCode();
+                    Log.info("http.keepalive", "status", status);
+                } catch (InterruptedException e) {
+                    break;
+                } catch (Exception e) {
+                    // keepalive failure is non-fatal
                 }
             }
         });
@@ -75,8 +100,6 @@ public class DiscordHttpClient {
             throw new RuntimeException("Failed to serialize request body", e);
         }
     }
-
-    private static final Duration REQUEST_TIMEOUT = Duration.ofMillis(2500);
 
     private DiscordResult<Void> sendRequest(HttpRequest.Builder builder) {
         try {
