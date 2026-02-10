@@ -8,7 +8,8 @@ import java.io.OutputStream;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -20,7 +21,10 @@ public final class Log {
     private static final Logger logger = System.getLogger("wen");
     private static final BlockingQueue<String> QUEUE = new ArrayBlockingQueue<>(4096);
     private static final OutputStream OUT = new FileOutputStream(FileDescriptor.out);
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ISO_INSTANT;
+    private static final ZoneId LOG_ZONE = System.getProperty("wen.log.timezone") != null
+        ? ZoneId.of(System.getProperty("wen.log.timezone"))
+        : ZoneId.systemDefault();
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     static {
         Thread drainThread = Thread.ofVirtual().name("wen-log-drain").start(Log::drainLoop);
@@ -106,7 +110,7 @@ public final class Log {
         }
 
         StringBuilder sb = new StringBuilder(128);
-        TIME_FMT.formatTo(Instant.now().truncatedTo(ChronoUnit.MILLIS), sb);
+        TIME_FMT.formatTo(ZonedDateTime.now(LOG_ZONE).truncatedTo(ChronoUnit.MILLIS), sb);
         sb.append(" ").append(level.name());
 
         if (evt != null) {

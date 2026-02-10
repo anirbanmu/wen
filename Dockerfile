@@ -39,6 +39,7 @@ COPY docker/entrypoint.sh /app/entrypoint.sh
 
 ENV JAVA_HOME=/opt/jre
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
+ENV TZ=America/Los_Angeles
 
 EXPOSE 8080
 
