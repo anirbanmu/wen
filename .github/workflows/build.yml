@@ -25,8 +25,8 @@ jobs:
       - name: run tests
         run: mvn test -B -Dmaven.repo.local=.m2/repository
 
-  docker:
-    name: docker build
+  container:
+    name: container image build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
