@@ -1,5 +1,7 @@
 # wen?
 
+[![build](https://github.com/anirbanmu/wen/actions/workflows/build.yml/badge.svg)](https://github.com/anirbanmu/wen/actions/workflows/build.yml)
+
 A Discord bot that tells you when stuff is. Written in Java because why not.
 
 `/wen f1` → next F1 race. `/wen f1 sprint` → next sprint. That's it. That's the bot.
