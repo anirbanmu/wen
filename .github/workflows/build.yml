@@ -18,12 +18,12 @@ jobs:
       - name: cache maven deps
         uses: actions/cache@v5
         with:
-          path: ~/.m2/repository
+          path: .m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('pom.xml') }}
           restore-keys: ${{ runner.os }}-maven-
 
       - name: run tests
-        run: mvn test -B
+        run: mvn test -B -Dmaven.repo.local=.m2/repository
 
   docker:
     name: docker build
