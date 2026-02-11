@@ -18,6 +18,10 @@ public record InteractionResponse(int type, @JsonAttribute(nullable = true) Data
         return new InteractionResponse(TYPE_CHANNEL_MESSAGE_WITH_SOURCE, new Data(null, embeds, null, null));
     }
 
+    public static InteractionResponse ephemeralEmbeds(List<Embed> embeds) {
+        return new InteractionResponse(TYPE_CHANNEL_MESSAGE_WITH_SOURCE, new Data(null, embeds, Data.FLAG_EPHEMERAL, null));
+    }
+
     public static InteractionResponse autocomplete(List<Choice> choices) {
         return new InteractionResponse(TYPE_APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, new Data(null, null, null, choices));
     }

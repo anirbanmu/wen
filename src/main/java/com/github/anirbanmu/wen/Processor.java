@@ -129,7 +129,7 @@ public class Processor {
         desc.append("───\n");
         desc.append("bot source · [github.com/anirbanmu/wen](https://github.com/anirbanmu/wen)");
 
-        return InteractionResponse.embeds(List.of(new InteractionResponse.Embed(
+        return InteractionResponse.ephemeralEmbeds(List.of(new InteractionResponse.Embed(
             "wen help", desc.toString(), 0x5865F2, null, null, null, null)));
     }
 
