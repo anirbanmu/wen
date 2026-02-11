@@ -77,7 +77,7 @@ public class Gateway {
     }
 
     public void disconnect() {
-        close();
+        closeAndInvalidate();
     }
 
     public boolean isHealthy() {
@@ -93,9 +93,24 @@ public class Gateway {
         return new ResumeState(sessionId, resumeGatewayUrl, lastSequence);
     }
 
-    private void close() {
+    // session is dead or we're shutting down — send 1000 so discord knows, clear resume state
+    private void closeAndInvalidate() {
+        close(true);
+    }
+
+    // connection died but session might still be valid — abort TCP, keep resume state
+    private void closeForReconnect() {
+        close(false);
+    }
+
+    private void close(boolean sendCloseFrame) {
         if (!closed.compareAndSet(false, true)) {
             return;
+        }
+
+        if (sendCloseFrame) {
+            sessionId = null;
+            resumeGatewayUrl = null;
         }
 
         Thread hb = heartbeatThread;
@@ -106,7 +121,11 @@ public class Gateway {
         WebSocket ws = socket;
         if (ws != null) {
             try {
-                ws.sendClose(WebSocket.NORMAL_CLOSURE, "closing");
+                if (sendCloseFrame) {
+                    ws.sendClose(WebSocket.NORMAL_CLOSURE, "closing");
+                } else {
+                    ws.abort();
+                }
             } catch (Exception ex) {
                 // already closed
             }
@@ -166,27 +185,27 @@ public class Gateway {
                 case GatewayEvent.HeartbeatAck _ -> lastAckAt = System.nanoTime();
                 case GatewayEvent.Reconnect _ -> {
                     Log.info("gateway.reconnect_requested");
-                    close();
+                    closeForReconnect();
                 }
                 case GatewayEvent.InvalidSession invalid -> {
                     Log.info("gateway.invalid_session", "resumable", invalid.resumable());
-                    if (!invalid.resumable()) {
-                        sessionId = null;
-                        resumeGatewayUrl = null;
-                    }
-                    close();
+                    if (invalid.resumable())
+                        closeForReconnect();
+                    else
+                        closeAndInvalidate();
                 }
             }
         } catch (Exception ex) {
             Log.error("gateway.message_error", ex);
-            close();
+            closeForReconnect();
         }
     }
 
     private void sendIdentify() {
         Identify identify = Identify.create(token, GATEWAY_INTENTS);
         if (!sendOpcode(OP_IDENTIFY, identify)) {
-            close();
+            // network dead, but no session established yet — don't invalidate a previous one
+            closeForReconnect();
             return;
         }
         Log.info("gateway.identify_sent");
@@ -205,7 +224,7 @@ public class Gateway {
             Log.info("gateway.resume_sent");
         } catch (Exception ex) {
             Log.error("gateway.resume_send_failed", ex);
-            close();
+            closeForReconnect();
         }
     }
 
@@ -220,7 +239,7 @@ public class Gateway {
             lastHeartbeatSentAt = System.nanoTime();
         } catch (Exception ex) {
             Log.error("gateway.heartbeat_send_failed", ex);
-            close();
+            closeForReconnect();
         }
     }
 
@@ -253,7 +272,7 @@ public class Gateway {
 
                     if (lastAckAt < lastHeartbeatSentAt) {
                         Log.warn("gateway.heartbeat_timeout");
-                        close();
+                        closeForReconnect();
                         return;
                     }
                 }
@@ -261,7 +280,7 @@ public class Gateway {
                 // shutdown
             } catch (Exception ex) {
                 Log.error("gateway.heartbeat_error", ex);
-                close();
+                closeForReconnect();
             }
         });
     }
@@ -288,14 +307,14 @@ public class Gateway {
         @Override
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
             Log.info("gateway.closed", "code", statusCode, "reason", reason);
-            close();
+            closeForReconnect();
             return null;
         }
 
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
             Log.error("gateway.error", error);
-            close();
+            closeForReconnect();
         }
     }
 }
