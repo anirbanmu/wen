@@ -22,6 +22,10 @@ kill_timeout = "5s"
 [[vm]]
   size = "shared-cpu-1x"
   memory = 256
+  count = 1
+
+[deploy]
+  strategy = "immediate"
 
 [[restart]]
   policy = "always"

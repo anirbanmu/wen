@@ -14,9 +14,9 @@ exec java \
   -XX:MaxRAM=256m \
   -XX:ActiveProcessorCount=1 \
   \
-  -Xms48m \
-  -Xmx48m \
-  -XX:SoftMaxHeapSize=32m \
+  -Xms64m \
+  -Xmx64m \
+  -XX:SoftMaxHeapSize=40m \
   \
   -XX:+UseZGC \
   -XX:+AlwaysPreTouch \
