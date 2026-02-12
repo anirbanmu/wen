@@ -299,6 +299,7 @@ public class Gateway {
             if (last) {
                 handleMessage(messageBuffer.toString());
                 messageBuffer.setLength(0);
+                messageBuffer.trimToSize();
             }
             webSocket.request(1);
             return null;
