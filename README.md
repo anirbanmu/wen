@@ -12,7 +12,6 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 - Responds to Discord slash commands with upcoming events
 - Keyword lookup, named filters, free-text search, autocomplete
 - Prefilters for noisy calendars (e.g., only "Grand Prix" events from a full F1 feed)
-- Health check endpoint for orchestrators
 
 ## What it runs on
 
@@ -22,13 +21,19 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 |-------------|-----------------------------------------------------------|
 | Runtime     | Java 25, JLink-stripped to only the modules the app needs |
 | GC          | ZGC, 40MB soft max, compact object headers                |
-| Concurrency | Virtual threads — Gateway, calendar refresh, HTTP, health |
-| HTTP        | `java.net.http` — HttpClient + WebSocket                  |
-| Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)    |
+| Concurrency | Virtual threads — gateway, calendar refresh, HTTP, health |
+| HTTP        | `java.net.http` — HttpClient + WebSocket, no frameworks   |
+| Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)   |
 | Container   | Multi-stage Docker, `debian:stable-slim` runtime          |
-| Deployment  | Fly.io, `shared-cpu-1x`, 256MB                            |
+| Deploy      | Fly.io, `shared-cpu-1x`, 256MB, single machine           |
 
 64MB heap, ZGC, virtual threads. Java's fine.
+
+### In production
+
+~1% CPU. <200MB RSS. GC pauses under 100µs. 4 dependencies.
+
+No Spring. No Netty. No Jackson. No Guava. Just the JDK and a few small libraries.
 
 ---
 
@@ -40,6 +45,22 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 /wen f1 monaco       → free-text search across event fields
 /wen help            → list available calendars and filters
 ```
+
+---
+
+## How it works
+
+```
+Discord Gateway (WebSocket)
+  → GatewayEventParser (dsl-json)
+    → Processor (query parse, calendar lookup, filter)
+      → CalendarFeed.query() (pre-sorted events, predicate match)
+        → DiscordHttpClient.respond() (rate-limited HTTP)
+```
+
+Calendar feeds refresh on configurable intervals via virtual threads. Each feed runs its own
+background loop with jitter to avoid thundering herd. A semaphore limits concurrent refreshes to 3.
+GC telemetry via JFR streams — pause stats, allocation stalls, and heap usage logged every 60s.
 
 ---
 
@@ -158,7 +179,7 @@ Subsequent deploys just need `fly deploy`. Health check on `/health:8080`, confi
 
 ---
 
-Built for the "wen race" crowd. You know who you are.
+Built for the "wen race" crowd 🏁
 
 ---
 
