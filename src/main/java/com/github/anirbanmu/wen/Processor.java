@@ -123,6 +123,11 @@ public class Processor {
                 desc.append("filters: `").append(String.join("`, `", config.filters().keySet())).append("`\n");
             }
 
+            if (config.source() != null) {
+                String domain = config.source().replaceFirst("^https?://", "").replaceFirst("/$", "");
+                desc.append("calendar from [").append(domain).append("](").append(config.source()).append(")\n");
+            }
+
             desc.append("\n");
         }
 

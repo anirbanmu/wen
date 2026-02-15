@@ -99,8 +99,13 @@ public class ConfigLoader {
             prefilter = parseFilter(table.getTable("prefilter"), name + ".prefilter");
         }
 
+        String source = table.getString("source");
+        if (source != null && source.isBlank()) {
+            source = null;
+        }
+
         return new Calendar(List.copyOf(keywords), name, url, refreshInterval, Map.copyOf(filters),
-            prefilter, fallback);
+            prefilter, fallback, source);
     }
 
     private static Filter parseFilter(TomlTable table, String context) {
