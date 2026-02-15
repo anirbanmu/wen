@@ -124,7 +124,7 @@ public class Processor {
             }
 
             if (config.source() != null) {
-                String domain = config.source().replaceFirst("^https?://", "").replaceFirst("/$", "");
+                String domain = config.source().replaceFirst("^https?://", "").replaceFirst("/.*$", "");
                 desc.append("calendar from [").append(domain).append("](").append(config.source()).append(")\n");
             }
 
