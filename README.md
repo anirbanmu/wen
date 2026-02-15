@@ -23,9 +23,9 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 | GC          | ZGC, 40MB soft max, compact object headers                |
 | Concurrency | Virtual threads — gateway, calendar refresh, HTTP, health |
 | HTTP        | `java.net.http` — HttpClient + WebSocket, no frameworks   |
-| Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)   |
+| Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)    |
 | Container   | Multi-stage Docker, `debian:stable-slim` runtime          |
-| Deploy      | Fly.io, `shared-cpu-1x`, 256MB, single machine           |
+| Deploy      | Fly.io, `shared-cpu-1x`, 256MB, single machine            |
 
 64MB heap, ZGC, virtual threads. Java's fine.
 

@@ -13,6 +13,7 @@ class ConfigLoaderTest {
             keywords = ["f1", "formula1"]
             name = "Formula 1"
             url = "https://example.com/f1.ics"
+            source = "https://example-source.com/"
             fallback = true
 
             [calendars.filters]
@@ -50,6 +51,7 @@ class ConfigLoaderTest {
 
         // prefilter should be null when not specified
         assertNull(f1.prefilter());
+        assertEquals("https://example-source.com/", f1.source());
 
         // Check Office Calendar
         Calendar office = config.calendars().get(1);
@@ -58,6 +60,7 @@ class ConfigLoaderTest {
         assertEquals(1, office.keywords().size());
         assertEquals("office", office.keywords().get(0));
         assertNull(office.prefilter());
+        assertNull(office.source());
     }
 
     @Test

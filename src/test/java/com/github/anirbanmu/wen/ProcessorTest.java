@@ -48,7 +48,7 @@ class ProcessorTest {
         String name = "test-calendar";
         Calendar config = new Calendar(
             List.of("test"), name, "http://invalid.url", Duration.ofHours(1),
-            Collections.emptyMap(), null, false);
+            Collections.emptyMap(), null, false, null);
 
         // feed that will fail to fetch but exist
         CalendarFeed feed = new CalendarFeed("http://invalid.url", Duration.ofHours(1));
