@@ -19,6 +19,7 @@ exec java \
   -XX:SoftMaxHeapSize=40m \
   \
   -XX:+UseZGC \
+  -XX:-ZUncommit \
   -XX:+AlwaysPreTouch \
   -XX:ZAllocationSpikeTolerance=5 \
   -XX:+UseCompactObjectHeaders \
