@@ -4,7 +4,7 @@
 
 A Discord bot that tells you when stuff is. Written in Java because why not.
 
-[Add wen to your server](https://discord.com/oauth2/authorize?client_id=1470268308862533715)
+[Install wen](https://discord.com/oauth2/authorize?client_id=1470268308862533715) -- works as a user install or a server bot
 
 `/wen f1` → next F1 race. `/wen f1 sprint` → next sprint. That's it. That's the bot.
 
