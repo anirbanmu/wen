@@ -26,10 +26,10 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 | Concurrency | Virtual threads — gateway, calendar refresh, HTTP, health |
 | HTTP        | `java.net.http` — HttpClient + WebSocket, no frameworks   |
 | Parsing     | `biweekly` (iCal), `tomlj` (config), `dsl-json` (JSON)    |
-| Container   | Multi-stage Docker, `debian:stable-slim` runtime          |
+| Container   | Multi-stage Docker, `alpine:3` runtime                    |
 | Deploy      | Fly.io, `shared-cpu-1x`, 256MB, single machine            |
 
-64MB heap, ZGC, virtual threads. Java's fine.
+64MB heap (Xms64m/Xmx64m with -XX:SoftMaxHeapSize=40m), ZGC, virtual threads. Java's fine.
 
 ### In production
 
@@ -139,9 +139,25 @@ contains = "Sprint"
 
 ### 5. Environment variables
 
+|         Variable         |  Required  |                               Description                                |
+|--------------------------|------------|--------------------------------------------------------------------------|
+| `DISCORD_TOKEN`          | Yes        | Bot token from Discord Developer Portal                                  |
+| `DISCORD_APPLICATION_ID` | Yes        | Application ID from Discord Developer Portal                             |
+| `WEN_CONFIG_B64`         | Production | Base64-encoded `config.toml` (required in Docker/Fly.io)                 |
+| `HEALTH_PORT`            | No         | Health check HTTP port (default: `8080`)                                 |
+| `UNHEALTHY_THRESHOLD_MS` | No         | Watchdog exit threshold in milliseconds (default: `600000` = 10 minutes) |
+
+Locally, you can pass the config file path via the `-Dconfig=path/to/config.toml` system property instead of `WEN_CONFIG_B64`.
+
 ```bash
-DISCORD_TOKEN=your_bot_token
-DISCORD_APPLICATION_ID=your_application_id
+# local development
+DISCORD_TOKEN="your_bot_token"
+DISCORD_APPLICATION_ID="your_application_id"
+
+# production (container)
+DISCORD_TOKEN="your_bot_token"
+DISCORD_APPLICATION_ID="your_application_id"
+WEN_CONFIG_B64="$(base64 -w0 config.toml)"
 ```
 
 ---
