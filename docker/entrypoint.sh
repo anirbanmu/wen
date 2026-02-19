@@ -11,7 +11,6 @@ else
 fi
 
 exec java \
-  -XX:MaxRAM=256m \
   -XX:ActiveProcessorCount=1 \
   \
   -Xms64m \
