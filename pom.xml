@@ -28,6 +28,12 @@
       <groupId>net.sf.biweekly</groupId>
       <artifactId>biweekly</artifactId>
       <version>0.6.8</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.dslplatform</groupId>
