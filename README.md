@@ -19,7 +19,7 @@ A Discord bot that tells you when stuff is. Written in Java because why not.
 
 256MB RAM. Shared CPU. One Fly.io machine.
 
-|             |                                                           |
+| Component   | Details                                                   |
 |-------------|-----------------------------------------------------------|
 | Runtime     | Java 25, JLink-stripped to only the modules the app needs |
 | GC          | ZGC, 40MB soft max, compact object headers                |
