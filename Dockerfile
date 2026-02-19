@@ -1,7 +1,7 @@
 # --- build stage ---
-FROM maven:3-amazoncorretto-25-debian AS build
+FROM maven:3-amazoncorretto-25-alpine AS build
 
-RUN apt-get update && apt-get install -y --no-install-recommends binutils && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache binutils
 
 WORKDIR /build
 COPY pom.xml formatter.xml ./
@@ -26,7 +26,7 @@ RUN jdeps \
       --output /jre
 
 # --- runtime stage ---
-FROM debian:stable-slim
+FROM alpine:3
 
 # Required at runtime:
 #   DISCORD_TOKEN          - Bot token
