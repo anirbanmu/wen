@@ -58,46 +58,6 @@ In production: ~1% CPU, <200MB RSS, GC pauses under 100µs, 4 dependencies.
 
 ## Discord setup
 
-Create a `config.toml`:
-
-```toml
-[[calendars]]
-name = "Formula 1"
-url = "https://example.com/f1-calendar.ics"
-keywords = ["f1", "formula1"]
-refreshInterval = "PT1H"  # ISO-8601 duration
-fallback = false
-
-[calendars.prefilter]
-field = "summary"
-contains = "Grand Prix"
-
-[calendars.filters.sprint]
-field = "summary"
-contains = "Sprint"
-```
-
-### Calendar fields
-
-|       Field       | Required |                   Description                   |
-|-------------------|----------|-------------------------------------------------|
-| `name`            | ✅        | Display name                                    |
-| `url`             | ✅        | iCal feed URL                                   |
-| `keywords`        | ✅        | Trigger words (e.g., `["f1", "formula1"]`)      |
-| `refreshInterval` |          | How often to refresh (default: `PT6H`)          |
-| `fallback`        |          | Use when no keyword matches (default: `false`)  |
-| `prefilter`       |          | Filter applied to all events from this calendar |
-| `filters.<name>`  |          | Named filters users can specify                 |
-
-### Filter fields
-
-|   Field    | Required |                                Description                                 |
-|------------|----------|----------------------------------------------------------------------------|
-| `contains` | ✅        | Substring to match (case-insensitive)                                      |
-| `field`    |          | `summary`, `description`, `location`, or `categories` (default: `summary`) |
-
-## Discord setup
-
 ### 1. Create application
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
